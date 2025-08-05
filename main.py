@@ -7,6 +7,8 @@ from torch.utils.data import DataLoader
 import lightning as L
 
 from hsdt import HSDT
+from metrics.psnr import compute_batch_mpsnr
+from metrics.ssim import compute_batch_mssim
 
 
 class LitAutoEncoder(L.LightningModule):
@@ -21,14 +23,37 @@ class LitAutoEncoder(L.LightningModule):
         self.model = HSDT(in_channels, channels, encoder_count, downsample_layers)
 
     def training_step(self, batch, batch_idx):
-        # training_step defines the train loop.
-        # x, _ = batch
-        # x = x.view(x.size(0), -1)
-        # z = self.encoder(x)
-        # x_hat = self.decoder(z)
-        # loss = F.mse_loss(x_hat, x)
-        # return loss
-        return
+        input, target = batch
+        output = self.model(input, target)
+        loss = F.mse_loss(output, target)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        input, target = batch
+        output = self.model(input, target)
+
+        loss = F.mse_loss(output, target)
+        ssim = compute_batch_mssim(output, target)
+        psnr = compute_batch_mpsnr(output, target)
+
+        self.log("val_loss", loss)
+        self.log("val_ssim", ssim, on_step=False, on_epoch=True)
+        self.log("val_psnr", psnr, on_step=False, on_epoch=True)
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        input, target = batch
+        output = self.model(input, target)
+
+        loss = F.mse_loss(output, target)
+        ssim = compute_batch_mssim(output, target)
+        psnr = compute_batch_mpsnr(output, target)
+
+        self.log("test_loss", loss)
+        self.log("test_ssim", ssim)
+        self.log("test_psnr", psnr)
+
+        return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
