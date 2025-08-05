@@ -1,60 +1,12 @@
-import os
-from typing import List
-import torch
-from torch import nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-import lightning as L
+from lightning.pytorch.cli import LightningCLI
+from lightning.pytorch.demos.boring_classes import DemoModel, BoringDataModule
 
-from hsdt import HSDT
-from metrics.psnr import compute_batch_mpsnr
-from metrics.ssim import compute_batch_mssim
+from model import HSDTLightning
 
 
-class LitAutoEncoder(L.LightningModule):
-    def __init__(
-        self,
-        in_channels: int,
-        channels: int,
-        encoder_count: int,
-        downsample_layers: List[int],
-    ):
-        super().__init__()
-        self.model = HSDT(in_channels, channels, encoder_count, downsample_layers)
+def cli_main():
+    cli = LightningCLI(HSDTLightning, BoringDataModule)
 
-    def training_step(self, batch, batch_idx):
-        input, target = batch
-        output = self.model(input, target)
-        loss = F.mse_loss(output, target)
-        return loss
 
-    def validation_step(self, batch, batch_idx):
-        input, target = batch
-        output = self.model(input, target)
-
-        loss = F.mse_loss(output, target)
-        ssim = compute_batch_mssim(output, target)
-        psnr = compute_batch_mpsnr(output, target)
-
-        self.log("val_loss", loss)
-        self.log("val_ssim", ssim, on_step=False, on_epoch=True)
-        self.log("val_psnr", psnr, on_step=False, on_epoch=True)
-        return loss
-
-    def test_step(self, batch, batch_idx):
-        input, target = batch
-        output = self.model(input, target)
-
-        loss = F.mse_loss(output, target)
-        ssim = compute_batch_mssim(output, target)
-        psnr = compute_batch_mpsnr(output, target)
-
-        self.log("test_loss", loss)
-        self.log("test_ssim", ssim)
-        self.log("test_psnr", psnr)
-
-        return loss
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
-        return optimizer
+if __name__ == "__main__":
+    cli_main()
