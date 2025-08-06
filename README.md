@@ -63,6 +63,11 @@ python main.py --help
 ```
 Note that all the individual commands also have `--help`
 
+### Reading Logs
+```bash
+tensorboard --logdir logs/hsdt_lightning
+```
+
 ## 🛠️ Generating new config file
 If you change model or data module parameters, regenerate the config file:
 
