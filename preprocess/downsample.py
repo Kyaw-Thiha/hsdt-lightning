@@ -83,6 +83,7 @@ def load_downsample_save(
             else:
                 print(f"[✗] Skipping Normalization due to invalid value: {normalization} ")
 
+            output_data[key] = img
             print(f"Image Shape after downsampling: {img.shape}")
 
         savemat(

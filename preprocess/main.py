@@ -45,8 +45,10 @@ def preprocess(
 
     for gaussian_noise in gaussian_noises:
         print(f"Generating noisy images of Sigma-{gaussian_noise}")
-        add_gaussian_noise(f"{file_path}/clean", f"{file_path}/gaussian_{gaussian_noise}", snr_db=gaussian_noise)
-        add_gaussian_noise(f"{file_path}/test_clean", f"{file_path}/test_gaussian_{gaussian_noise}", snr_db=gaussian_noise)
+        add_gaussian_noise(f"{file_path}/clean", f"{file_path}/gaussian_{gaussian_noise}", snr_db=gaussian_noise, clip=(0, 1))
+        add_gaussian_noise(
+            f"{file_path}/test_clean", f"{file_path}/test_gaussian_{gaussian_noise}", snr_db=gaussian_noise, clip=(0, 1)
+        )
         print("-------------------------------------")
 
 
