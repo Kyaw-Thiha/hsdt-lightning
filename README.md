@@ -1,5 +1,6 @@
 # HSDT-Lightning
-Implementing the [HSDT](https://github.com/Zeqiang-Lai/HSDT) model using pytorch lightning.
+Implementing the [HSDT](https://github.com/Zeqiang-Lai/HSDT) model using pytorch lightning in order to remove dark noise of hyperspectral images for FINCH satellite of UofT Aerospace Team.
+
 - Enable training on multiple-GPU with distributed data parallel (DDP)
 - Control training & testing with yaml config files
 - Well-Documented & strongly-typed code
@@ -53,6 +54,19 @@ Note that all the individual commands also have `--help`
 ```bash
 python main.py fit --print_config > configs/default.yaml
 ```
+
+## File Structure
+Brief explanation of all the files & folders in the codebase.
+
+- `main.py` - Contains code for Lightning CLI
+- `model.py` - Contains the LightingModule for the hsdt model
+- `data_module.py` - Contains LightningDataModule for the HSI dataset, , as well as transformations to apply onto it
+- `dataset.py` - Contains the actual HSI dataset, as well as functions for patching
+- `config/` - Folder containing all the config files for running the training/testing
+- `hsdt/` - Folder containing the actual HSDT architecture from `hsdt/arch.py`
+- `metrics/` - Folder containing `ssim.py` and `psnr.py` for metrics
+- `preprocess/` - Folder containing the files used for preprocessing the images. Entry file is `preprocess/main.py`
+- `data/` - This is where all the images are stored in.
 
 ## Technologies Used
 - [Pytorch Lightning](https://lightning.ai/docs/pytorch/stable/starter/introduction.html) - You are recommended to go read the docs
