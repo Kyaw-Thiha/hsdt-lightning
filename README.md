@@ -24,38 +24,40 @@ pip install -r requirements.txt
 6. (Optional to 5) Ensure data: preprocess_data is set to `true` inside the yaml config file
 
 ## ⚙️ Running the code
-### Training
+### 🔧 Training
 ```bash
 python main.py fit --config config/train.yaml
 ```
 
-### Validation
+### ✅ Validation
 ```bash
 python main.py validate --config config/train.yaml
 ```
 
-### Testing
+### 🧪 Testing
 ```bash
 python main.py test --config config/train.yaml
 ```
 
-### Predict
+### 🔮 Predict
 ```bash
 python main.py predict --config config/train.yaml
 ```
 
-### For help text
+### 🆘 For help text
 ```bash
 python main.py --help
 ```
 Note that all the individual commands also have `--help`
 
 ## 🛠️ Generating new config file
-- After making changes to the parameters of the model or data module, you need to regenerate the config file
-- You are recommended to look at pre-existing config file to set the values in the newly generated config file
+If you change model or data module parameters, regenerate the config file:
+
 ```bash
 python main.py fit --print_config > configs/default.yaml
 ```
+
+Use an existing config (e.g. config/train.yaml) as a template to fill in values.
 
 ## 🧾 Project Structure
 Overview of the project structure:
