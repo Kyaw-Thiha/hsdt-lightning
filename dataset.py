@@ -43,7 +43,7 @@ class HSIDataset(Dataset):
         for mat_file in files:
             mat = loadmat(mat_file)
 
-            noisy = mat["input "]  # Noisy image
+            noisy = mat["input"]  # Noisy image
             clean = mat["gt"]  # Clean image
 
             if noisy.ndim == 3:
