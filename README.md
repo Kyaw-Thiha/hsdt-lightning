@@ -34,6 +34,11 @@ python main.py fit --config config/train.yaml
 python main.py fit --config config/train.yaml --ckpt_path checkpoint/hsdt-epoch10.ckpt
 ```
 
+### 🔧 Running a smoke test
+```bash
+python main.py fit --config config/train.yaml --trainer.fast_dev_run=True
+```
+
 ### ✅ Validation
 ```bash
 python main.py validate --config config/train.yaml
