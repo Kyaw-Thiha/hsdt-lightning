@@ -1,11 +1,11 @@
 from lightning.pytorch.cli import LightningCLI
-from lightning.pytorch.demos.boring_classes import DemoModel, BoringDataModule
 
 from model import HSDTLightning
+from data_module import HSIDataModule
 
 
 def cli_main():
-    cli = LightningCLI(HSDTLightning, BoringDataModule)
+    cli = LightningCLI(HSDTLightning, HSIDataModule)
 
 
 if __name__ == "__main__":
