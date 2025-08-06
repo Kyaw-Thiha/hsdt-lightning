@@ -65,8 +65,12 @@ trainer:
   enable_checkpointing: true
   enable_progress_bar: true
   enable_model_summary: true
-  logger: true
   accumulate_grad_batches: 1
+  logger:
+    class_path: lightning.pytorch.loggers.TensorBoardLogger
+    init_args:
+      save_dir: logs/
+      name: hsdt_lightning
 
   # Gradiant clipping to help stabilize training
   gradient_clip_val: 1.0
