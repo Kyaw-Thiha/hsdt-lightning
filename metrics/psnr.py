@@ -11,7 +11,7 @@ def compute_batch_mpsnr(predictions: torch.Tensor, targets: torch.Tensor) -> flo
     Parameters
     ----------
     predictions : torch.Tensor
-        Predicted images, shape (B, C, H, W), values expected in [0, 1].
+        Predicted images, shape (B, C, D, H, W), values expected in [0, 1].
 
     targets : torch.Tensor
         Ground truth images, same shape as `predictions`.
@@ -24,19 +24,19 @@ def compute_batch_mpsnr(predictions: torch.Tensor, targets: torch.Tensor) -> flo
     Raises
     ------
     AssertionError
-        If input tensors do not have the same shape or are not 4D tensors.
+        If input tensors do not have the same shape or are not 5D tensors.
     """
-    assert predictions.shape == targets.shape, (
-        "Predictions and targets must have the same shape"
-    )
-    assert predictions.ndim == 4, "Input tensors must be 4-dimensional (B, C, H, W)"
+    assert predictions.shape == targets.shape, "Predictions and targets must have the same shape"
+    assert predictions.ndim == 5, f"Expected input tensors to be 5D (B, C, D, H, W), but got {predictions.shape}"
 
     batch_size = predictions.size(0)
     mpsnr_scores = []
 
+    # Looping over each batch
+    # Since we know we only have 1 channel for HSI, we take the first element
     for i in range(batch_size):
-        pred_img = predictions[i].detach().cpu().permute(1, 2, 0).numpy()
-        target_img = targets[i].detach().cpu().permute(1, 2, 0).numpy()
+        pred_img = predictions[i, 0].detach().cpu().permute(1, 2, 0).numpy()
+        target_img = targets[i, 0].detach().cpu().permute(1, 2, 0).numpy()
 
         score = MPSNR(pred_img, target_img)
         mpsnr_scores.append(score)

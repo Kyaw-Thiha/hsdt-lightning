@@ -7,8 +7,9 @@ def compute_batch_mssim(predictions: torch.Tensor, targets: torch.Tensor) -> flo
     """
     Compute the average MSSIM (Mean Structural Similarity Index) over a batch of images.
 
-    This function assumes predictions and targets are PyTorch tensors with shape (B, C, H, W),
-    where B is the batch size, C is the number of channels (e.g., spectral bands), and H and W are spatial dimensions.
+    This function assumes predictions and targets are PyTorch tensors with shape (B, C, D, H, W),
+    where B is the batch size, C is the number of channel, D is the number of spectral bands, and
+    H and W are spatial dimensions.
     It converts each image pair to NumPy and computes MSSIM per sample.
 
     Parameters
@@ -27,19 +28,19 @@ def compute_batch_mssim(predictions: torch.Tensor, targets: torch.Tensor) -> flo
     Raises
     ------
     AssertionError
-        If input tensors do not have the same shape or are not 4D tensors.
+        If input tensors do not have the same shape or are not 5D tensors.
     """
-    assert predictions.shape == targets.shape, (
-        "Predictions and targets must have the same shape"
-    )
-    assert predictions.ndim == 4, "Input tensors must be 4-dimensional (B, C, H, W)"
+    assert predictions.shape == targets.shape, "Predictions and targets must have the same shape"
+    assert predictions.ndim == 5, f"Expected input tensors to be 5D (B, C, D, H, W), but got {predictions.shape}"
 
     batch_size = predictions.size(0)
     mssim_scores = []
 
+    # Looping over each batch
+    # Since we know we only have 1 channel for HSI, we take the first element
     for i in range(batch_size):
-        pred_img = predictions[i].detach().cpu().permute(1, 2, 0).numpy()  # CHW → HWC
-        target_img = targets[i].detach().cpu().permute(1, 2, 0).numpy()
+        pred_img = predictions[i, 0].detach().cpu().permute(1, 2, 0).numpy()  # CHW → HWC
+        target_img = targets[i, 0].detach().cpu().permute(1, 2, 0).numpy()
 
         score = MSSIM(pred_img, target_img)
         mssim_scores.append(score)
