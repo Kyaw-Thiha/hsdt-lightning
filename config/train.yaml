@@ -89,13 +89,6 @@ trainer:
   inference_mode: true
   use_distributed_sampler: true
 
-  # Profiler 
-  profiler:
-    class_path: lightning.pytorch.profilers.AdvancedProfiler
-    init_args:
-      dirpath: "logs"
-      filename: "profiler.txt"
-
   detect_anomaly: false
   barebones: false
   plugins: null

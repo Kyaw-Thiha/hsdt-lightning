@@ -5,6 +5,7 @@ from torch import Tensor
 from torch.optim import Optimizer
 import torch.nn.functional as F
 import lightning as L
+from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
 
 from hsdt import HSDT
 from metrics.psnr import compute_batch_mpsnr
@@ -68,10 +69,15 @@ class HSDTLightning(L.LightningModule):
 
         return loss
 
+    # Logging the loss after every epoch in training
     def on_train_epoch_end(self):
         train_loss = self.trainer.callback_metrics.get("train_loss")
         if train_loss is not None:
             print(f"Epoch-{self.current_epoch} Loss: {train_loss:.4f}")
+
+    def on_fit_start(self) -> None:
+        summary = ModelSummary(self, max_depth=2)
+        print(summary)
 
     # Only for smoke test run.
     # Not used in actual training
