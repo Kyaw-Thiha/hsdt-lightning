@@ -1,7 +1,8 @@
 from typing import List
-from clean_mat import clean_mat
-from add_gaussian_noise import add_gaussian_noise
-from downsample import load_downsample_save
+
+from preprocess.clean_mat import clean_mat
+from preprocess.add_gaussian_noise import add_gaussian_noise
+from preprocess.downsample import load_downsample_save
 
 FILE_PATH = "../data"
 

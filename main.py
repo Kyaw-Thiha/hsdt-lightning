@@ -1,4 +1,5 @@
 from lightning.pytorch.cli import LightningCLI
+from lightning.pytorch.callbacks import ModelSummary
 
 from model import HSDTLightning
 from data_module import HSIDataModule

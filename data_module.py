@@ -20,7 +20,7 @@ class HSIDataModule(L.LightningDataModule):
         base_dir (str): Path to the base directory where all HSI folders are stored.
         spatial_factor (int): Desired spatial size for output or patches.
         out_bands (int): Number of spectral bands to keep in the output.
-        generate_preprocessed (bool): Whether to dynamically generate data using `preprocess()` function.
+        preprocess_data (bool): Whether to dynamically generate data using `preprocess()` function.
         gaussian_noises (List[int]): List of Gaussian noise levels used (e.g., [30, 50, 70]).
         patch_test (bool): Whether to apply patch extraction to test dataset.
         batch_size (int): Number of samples per batch.
@@ -31,7 +31,7 @@ class HSIDataModule(L.LightningDataModule):
         base_dir: str,
         spatial_factor: int = 64,
         out_bands: int = 81,
-        generate_preprocessed: bool = False,
+        preprocess_data: bool = False,
         gaussian_noises: List[int] = [30, 50, 70],
         patch_test: bool = True,
         batch_size: int = 32,
@@ -40,7 +40,7 @@ class HSIDataModule(L.LightningDataModule):
         self.base_dir: str = base_dir
         self.spatial_factor: int = spatial_factor
         self.out_bands: int = out_bands
-        self.generate_preprocessed = generate_preprocessed
+        self.preprocess_data = preprocess_data
         self.gaussian_noises: List[int] = gaussian_noises
         self.patch_test: bool = patch_test
         self.batch_size: int = batch_size
@@ -55,7 +55,7 @@ class HSIDataModule(L.LightningDataModule):
         If dynamic generation is enabled, run the preprocessing function once.
         Only runs on rank 0 in distributed setups.
         """
-        if self.generate_preprocessed:
+        if self.preprocess_data:
             preprocess(
                 file_path=self.base_dir,
                 spatial_factor=self.spatial_factor,

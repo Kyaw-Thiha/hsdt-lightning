@@ -145,34 +145,10 @@ def downsample(
         pca = PCA(n_components=out_bands)
         projected = pca.fit_transform(reshaped)  # shape: (H*W, out_bands)
         lowres = projected.reshape(H, W, out_bands)
-    elif spectral_algorithm == "camera":
-        # 3. Downsample based on response function of a camera
-        lowres = simulate_msi_from_hsi(lowres)
+    # elif spectral_algorithm == "camera":
+    #     # 3. Downsample based on response function of a camera
+    #     lowres = simulate_msi_from_hsi(lowres)
     return lowres
-
-
-NIKON_D700_RESPONSE = np.load("preprocess/NIKON_D700_RESPONSE.npy")
-
-
-def simulate_msi_from_hsi(hsi: np.ndarray, response: np.ndarray = NIKON_D700_RESPONSE) -> np.ndarray:
-    """
-    Simulate an MSI (RGB) image from an HSI image using a camera spectral response function.
-
-    Parameters:
-    - hsi (H x W x C): hyperspectral image, must have 31 spectral bands matching response
-    - response (3 x C): camera spectral response matrix (default: Nikon D700)
-
-    Returns:
-    - rgb (H x W x 3): simulated RGB image normalized to [0, 1]
-    """
-    assert hsi.shape[2] == response.shape[1], "HSI and response function must have same number of bands"
-
-    H, W, C = hsi.shape
-    hsi_reshaped = hsi.reshape(-1, C)  # (H*W, C)
-    rgb_reshaped = hsi_reshaped @ response.T  # (H*W, 3)
-    rgb = rgb_reshaped.reshape(H, W, 3)
-
-    return rgb
 
 
 def normalize_image(img: np.ndarray) -> np.ndarray:
