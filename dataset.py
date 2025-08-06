@@ -46,7 +46,6 @@ class HSIDataset(Dataset):
             noisy = mat["input "]  # Noisy image
             clean = mat["gt"]  # Clean image
 
-            # Ensure (C, H, W) format if needed
             if noisy.ndim == 3:
                 # From (H, W, C) to (C, H, W)
                 noisy = np.transpose(noisy, (2, 0, 1))
