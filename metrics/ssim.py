@@ -42,14 +42,14 @@ def compute_batch_mssim(predictions: torch.Tensor, targets: torch.Tensor) -> flo
         pred_img = predictions[i, 0].detach().cpu().permute(1, 2, 0).numpy()  # CHW → HWC
         target_img = targets[i, 0].detach().cpu().permute(1, 2, 0).numpy()
 
-        score = MSSIM(pred_img, target_img)
+        score = MSSIM(pred_img, target_img, normalize=False)
         mssim_scores.append(score)
 
     avg_mssim = sum(mssim_scores) / batch_size
     return avg_mssim
 
 
-def MSSIM(img1: np.ndarray, img2: np.ndarray) -> float:
+def MSSIM(img1: np.ndarray, img2: np.ndarray, normalize: bool = False) -> float:
     """
     Compute the Mean Structural Similarity Index (MSSIM) between two hyperspectral images.
 
@@ -82,8 +82,9 @@ def MSSIM(img1: np.ndarray, img2: np.ndarray) -> float:
     """
     assert img1.shape == img2.shape, "Input images must have the same shape"
 
-    img1 = normalize_image(img1)
-    img2 = normalize_image(img2)
+    if normalize:
+        img1 = normalize_image(img1)
+        img2 = normalize_image(img2)
 
     if img1.ndim == 2 or (img1.ndim == 3 and img1.shape[2] == 1):
         # Single channel
