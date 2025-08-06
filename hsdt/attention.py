@@ -237,25 +237,8 @@ class FFN(nn.Module):
 class TransformerBlock(nn.Module):
     def __init__(self, channels, num_bands=31, bias=False, flex=False):
         super().__init__()
-        self.attn = nn.Identity()
+        self.attn = GSSA(channels, num_bands, flex=flex)
         self.ffn = SMFFN(channels, channels * 2, bias=bias)
-        self.channels = channels
-        self.num_bands = num_bands
-        self.flex = flex
-        self.bias = bias
-
-    def set_num_bands(self, num_bands: int):
-        """
-        Dynamically set num_bands
-
-        Args:
-            num_bands (int): Number of spectral bands.
-        """
-        if self.num_bands != num_bands:
-            attn = GSSA(self.channels, num_bands, flex=self.flex)
-            self.add_module("attn", attn)  # registers it
-            setattr(self, "attn", attn)  # overwrites attribute for forward
-            self.num_bands = num_bands
 
     def forward(self, inputs):
         r, _ = self.attn(inputs)

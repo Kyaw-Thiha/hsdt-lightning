@@ -14,13 +14,14 @@ IsConvImpl: bool = False
 UseBN: bool = True
 
 
-def PlainConv(in_ch: int, out_ch: int) -> nn.Sequential:
+def PlainConv(in_ch: int, out_ch: int, num_bands: int) -> nn.Sequential:
     """
     Creates a basic convolution block with optional batch normalization and attention.
 
     Args:
         in_ch: Number of input channels.
         out_ch: Number of output channels.
+        num_bands: Number of spectral bands.
 
     Returns:
         nn.Sequential containing Conv3d, BatchNorm3d (optional), and TransformerBlock.
@@ -30,19 +31,20 @@ def PlainConv(in_ch: int, out_ch: int) -> nn.Sequential:
             [
                 ("conv", Conv3d(in_ch, out_ch, 3, 1, 1, bias=False)),
                 ("bn", BatchNorm3d(out_ch) if UseBN else nn.Identity()),
-                ("attn", TransformerBlock(out_ch, bias=True)),
+                ("attn", TransformerBlock(out_ch, num_bands, bias=True)),
             ]
         )
     )
 
 
-def DownConv(in_ch: int, out_ch: int) -> nn.Sequential:
+def DownConv(in_ch: int, out_ch: int, num_bands: int) -> nn.Sequential:
     """
     Creates a downsampling block using strided convolution.
 
     Args:
         in_ch: Number of input channels.
         out_ch: Number of output channels.
+        num_bands: Number of spectral bands.
 
     Returns:
         nn.Sequential block.
@@ -52,19 +54,20 @@ def DownConv(in_ch: int, out_ch: int) -> nn.Sequential:
             [
                 ("conv", nn.Conv3d(in_ch, out_ch, 3, (1, 2, 2), 1, bias=False)),
                 ("bn", BatchNorm3d(out_ch) if UseBN else nn.Identity()),
-                ("attn", TransformerBlock(out_ch, bias=True)),
+                ("attn", TransformerBlock(out_ch, num_bands, bias=True)),
             ]
         )
     )
 
 
-def UpConv(in_ch: int, out_ch: int) -> nn.Sequential:
+def UpConv(in_ch: int, out_ch: int, num_bands: int) -> nn.Sequential:
     """
     Creates an upsampling block using trilinear interpolation followed by convolution.
 
     Args:
         in_ch: Number of input channels.
         out_ch: Number of output channels.
+        num_bands: Number of spectral bands.
 
     Returns:
         nn.Sequential block.
@@ -78,7 +81,7 @@ def UpConv(in_ch: int, out_ch: int) -> nn.Sequential:
                 ),
                 ("conv", nn.Conv3d(in_ch, out_ch, 3, 1, 1, bias=False)),
                 ("bn", BatchNorm3d(out_ch) if UseBN else nn.Identity()),
-                ("attn", TransformerBlock(out_ch, bias=True)),
+                ("attn", TransformerBlock(out_ch, num_bands, bias=True)),
             ]
         )
     )
@@ -91,15 +94,15 @@ class Encoder(nn.Module):
     Downsampling is applied at layers specified by sample_idx.
     """
 
-    def __init__(self, channels: int, num_half_layer: int, downsample_layers: List[int]):
+    def __init__(self, channels: int, num_half_layer: int, downsample_layers: List[int], num_bands: int):
         super().__init__()
         self.layers = nn.ModuleList()
         for i in range(num_half_layer):
             if i in downsample_layers:
-                self.layers.append(DownConv(channels, 2 * channels))
+                self.layers.append(DownConv(channels, 2 * channels, num_bands))
                 channels *= 2
             else:
-                self.layers.append(PlainConv(channels, channels))
+                self.layers.append(PlainConv(channels, channels, num_bands))
 
     def forward(self, x: torch.Tensor, xs: List[torch.Tensor]) -> torch.Tensor:
         for layer in self.layers[:-1]:
@@ -120,6 +123,7 @@ class Decoder(nn.Module):
         channels: int,
         num_half_layer: int,
         downsample_layers: List[int],
+        num_bands: int,
         Fusion: Optional[Callable[[int], nn.Module]] = None,
     ):
         super().__init__()
@@ -136,10 +140,10 @@ class Decoder(nn.Module):
 
         for i in reversed(range(num_half_layer)):
             if i in downsample_layers:
-                self.layers.append(UpConv(channels, channels // 2))
+                self.layers.append(UpConv(channels, channels // 2, num_bands))
                 channels //= 2
             else:
-                self.layers.append(PlainConv(channels, channels))
+                self.layers.append(PlainConv(channels, channels, num_bands))
 
     def forward(self, x: torch.Tensor, xs: List[torch.Tensor]) -> torch.Tensor:
         x = self.layers[0](x)
@@ -190,6 +194,9 @@ class HSDT(nn.Module):
             For example, `[1, 3]` means downsample after the 1st and 3rd encoder blocks.
             The decoder will upsample at the same layers in reverse order.
 
+        num_bands (int):
+            Number of spectral bands in the data
+
         Fusion (Optional[Callable[[int], nn.Module]]):
             Optional callable that returns a fusion module for combining encoder and decoder features
             during skip connections. If `None`, skip connections use element-wise addition.
@@ -212,23 +219,22 @@ class HSDT(nn.Module):
         channels: int,
         num_half_layer: int,
         downsample_layers: List[int],
+        num_bands: int,
         Fusion: Optional[Callable[[int], nn.Module]] = None,
     ):
         super().__init__()
-        self.head = PlainConv(in_channels, channels)
-        self.encoder = Encoder(channels, num_half_layer, downsample_layers)
+        self.head = PlainConv(in_channels, channels, num_bands)
+        self.encoder = Encoder(channels, num_half_layer, downsample_layers, num_bands)
         self.decoder = Decoder(
             channels * (2 ** len(downsample_layers)),
             num_half_layer,
             downsample_layers,
+            num_bands,
             Fusion,
         )
         self.tail = nn.Conv3d(channels, 1, 3, 1, 1, bias=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, C, D, H, W = x.shape
-        self.set_num_bands_recursively(num_bands=D)
-
         xs: List[torch.Tensor] = [x]
         out = self.head(x)
         xs.append(out)
@@ -238,17 +244,6 @@ class HSDT(nn.Module):
         out = self.tail(out)
         out = out + xs.pop()[:, 0:1, :, :, :]  # final residual connection
         return out
-
-    def set_num_bands_recursively(self, num_bands: int):
-        """
-        Dynamically set num_bands in all TransformerBlocks
-
-        Args:
-            num_bands (int): Number of spectral bands.
-        """
-        for m in self.modules():
-            if isinstance(m, TransformerBlock):
-                m.set_num_bands(num_bands)
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False):
         """

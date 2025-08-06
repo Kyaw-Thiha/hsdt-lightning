@@ -1,5 +1,13 @@
 # lightning.pytorch==2.5.2
 seed_everything: true
+model:
+  in_channels: 1
+  channels: 6
+  encoder_count: 5
+  downsample_layers:
+  - 1
+  - 3
+  num_bands: 81
 trainer:
   accelerator: auto
   strategy: auto
@@ -95,13 +103,6 @@ trainer:
   reload_dataloaders_every_n_epochs: 0
   default_root_dir: null
   model_registry: null
-model:
-  in_channels: 1
-  channels: 6
-  encoder_count: 5
-  downsample_layers:
-  - 1
-  - 3
 data:
   base_dir: "data"
   spatial_factor: 64
