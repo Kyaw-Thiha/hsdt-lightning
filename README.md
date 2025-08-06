@@ -9,13 +9,13 @@ PyTorch Lightning ⚡ implementation of the [HSDT](https://arxiv.org/pdf/2303.09
 
 Note that my companion notes can be found in [notion](https://utat-ss.notion.site/HSDT-Denoiser-aa306c141f8c4bbd8100d43efe740df1)
 
-## Installing Dependencies
+## 📦 Installing Dependencies
 Create a virtual environment, and run
 ```bash
 pip install -r requirements.txt
 ```
 
-## Data Preparation
+## 🗂️ Data Preparation
 1. Create a `data` folder.
 2. Create `raw` and `test` inside the `data` folder.
 3. Download your hyperspectral images to train on into the `raw` folder.
@@ -23,7 +23,7 @@ pip install -r requirements.txt
 5. (Optional to 6) Run `python -m preprocess.main`. 
 6. (Optional to 5) Ensure data: preprocess_data is set to `true` inside the yaml config file
 
-## Running the code
+## ⚙️ Running the code
 ### Training
 ```bash
 python main.py fit --config config/train.yaml
@@ -50,33 +50,44 @@ python main.py --help
 ```
 Note that all the individual commands also have `--help`
 
-## Generating new config file
+## 🛠️ Generating new config file
 - After making changes to the parameters of the model or data module, you need to regenerate the config file
 - You are recommended to look at pre-existing config file to set the values in the newly generated config file
 ```bash
 python main.py fit --print_config > configs/default.yaml
 ```
 
-## File Structure
-Brief explanation of all the files & folders in the codebase.
+## 🧾 Project Structure
+Overview of the project structure:
 
-- `main.py` - Contains code for Lightning CLI
-- `model.py` - Contains the LightingModule for the hsdt model
-- `data_module.py` - Contains LightningDataModule for the HSI dataset, , as well as transformations to apply onto it
-- `dataset.py` - Contains the actual HSI dataset, as well as functions for patching
-- `config/` - Folder containing all the config files for running the training/testing
-- `hsdt/` - Folder containing the actual HSDT architecture from `hsdt/arch.py`
-- `metrics/` - Folder containing `ssim.py` and `psnr.py` for metrics
-- `preprocess/` - Folder containing the files used for preprocessing the images. Entry file is `preprocess/main.py`
-- `data/` - This is where all the training & testing images are stored in.
-- `logs/` - This is where all the logs are stored in.
-- `checkpoints/best` - This is where the best psnr & ssim checkpoints are stored  
-- `checkpoints/interval` - This is where checkpoints are stored every 5 epochs.
+```
 
-## Technologies Used
-- [Pytorch Lightning](https://lightning.ai/docs/pytorch/stable/starter/introduction.html) - You are recommended to go read the docs
-- [Pytorch](https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html) - For the model architecture
-- [Scikit Image](https://scikit-image.org/docs/0.25.x/api/skimage.metrics.html) - Used for Metrics of SSIM & PSNR
-- [Scipy](https://scipy.org/) - To help load & save .mat files
+├── main.py               # Entry point using LightningCLI
+├── model.py              # LightningModule for HSDT model
+├── data_module.py        # LightningDataModule with transforms
+├── dataset.py            # HSI dataset & patching logic
+│
+├── config/               # YAML configuration files
+├── hsdt/                 # HSDT architecture (`hsdt/arch.py`)
+├── metrics/              # Metrics: SSIM (`ssim.py`), PSNR (`psnr.py`)
+├── preprocess/           # Preprocessing scripts (`main.py` is entry point)
+│
+├── data/                 # Input images for training/testing
+│   ├── raw/              # Raw training data
+│   └── test/             # Testing data
+│
+├── logs/                 # Lightning logs
+│
+└── checkpoints/
+    ├── best/             # Best-performing checkpoints (highest PSNR/SSIM)
+    └── interval/         # Checkpoints saved every 5 epochs
+
+```
+
+## 🧰 Technologies Used
+- [Pytorch Lightning](https://lightning.ai/docs/pytorch/stable/starter/introduction.html) - Training Loop Abstraction
+- [Pytorch](https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html) - Deep learning framework
+- [Scikit Image](https://scikit-image.org/docs/0.25.x/api/skimage.metrics.html) - Image quality metrics (SSIM & PSNR)
+- [Scipy](https://scipy.org/) - For loading/saving .mat files
 
 For complete list, consult the `requirements.txt`
