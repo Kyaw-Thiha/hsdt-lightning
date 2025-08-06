@@ -14,9 +14,6 @@ trainer:
   devices: auto
   num_nodes: 1
   
-  # Using 16-bit mixed precision
-  precision: "16-mixed"
-
   callbacks:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
       init_args:
@@ -113,7 +110,7 @@ data:
   # - 50
   # - 70
   patch_test: true
-  batch_size: 32
+  batch_size: 2
   num_workers: 0
 optimizer:
   class_path: torch.optim.AdamW
