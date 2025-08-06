@@ -127,8 +127,8 @@ class HSITransform:
         self.crop_size = crop_size
 
     def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
-        assert tensor.ndim == 3, "Expected tensor of shape (C, H, W)"
-        C, H, W = tensor.shape
+        assert tensor.ndim == 5, "Expected tensor of shape (B, C, D, H, W)"
+        B, C, D, H, W = tensor.shape
         assert H >= self.crop_size and W >= self.crop_size, "Image too small for cropping."
 
         # Random horizontal flip
