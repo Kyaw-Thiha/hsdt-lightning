@@ -35,9 +35,12 @@ python main.py fit --config config/train.yaml --ckpt_path checkpoint/hsdt-epoch1
 ```
 
 ### 🔧 Running a smoke test
+Run this when you want to see if your code is running or not.
+
 ```bash
-python main.py fit --config config/train.yaml --trainer.fast_dev_run=True
+python main.py fit --config config/train_local.yaml --trainer.profiler=null --trainer.fast_dev_run=True
 ```
+
 
 ### ✅ Validation
 ```bash
