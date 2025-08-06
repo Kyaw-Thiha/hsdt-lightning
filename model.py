@@ -38,6 +38,7 @@ class HSDTLightning(L.LightningModule):
         input, target = batch
         output = self.model(input)
         loss = F.mse_loss(output, target)
+        self.log("train_loss", loss, on_step=False, on_epoch=True)
         return loss
 
     def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
@@ -66,6 +67,11 @@ class HSDTLightning(L.LightningModule):
         self.log("test_psnr", psnr, prog_bar=True)
 
         return loss
+
+    def on_train_epoch_end(self):
+        train_loss = self.trainer.callback_metrics.get("train_loss")
+        if train_loss is not None:
+            print(f"Epoch-{self.current_epoch} Loss: {train_loss:.4f}")
 
     # Only for smoke test run.
     # Not used in actual training
