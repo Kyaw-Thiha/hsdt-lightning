@@ -66,11 +66,15 @@ Brief explanation of all the files & folders in the codebase.
 - `hsdt/` - Folder containing the actual HSDT architecture from `hsdt/arch.py`
 - `metrics/` - Folder containing `ssim.py` and `psnr.py` for metrics
 - `preprocess/` - Folder containing the files used for preprocessing the images. Entry file is `preprocess/main.py`
-- `data/` - This is where all the images are stored in.
+- `data/` - This is where all the training & testing images are stored in.
+- `logs/` - This is where all the logs are stored in.
+- `checkpoints/best` - This is where the best psnr & ssim checkpoints are stored  
+- `checkpoints/interval` - This is where checkpoints are stored every 5 epochs.
 
 ## Technologies Used
 - [Pytorch Lightning](https://lightning.ai/docs/pytorch/stable/starter/introduction.html) - You are recommended to go read the docs
-- Pytorch
+- [Pytorch](https://docs.pytorch.org/docs/stable/generated/torch.nn.Module.html) - For the model architecture
 - [Scikit Image](https://scikit-image.org/docs/0.25.x/api/skimage.metrics.html) - Used for Metrics of SSIM & PSNR
 - [Scipy](https://scipy.org/) - To help load & save .mat files
-For full list, look at the `requirements.txt`
+
+For complete list, consult the `requirements.txt`
