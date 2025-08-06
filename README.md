@@ -1,4 +1,4 @@
-# hsdt-lightning
+# HSDT-Lightning
 Implementing the [HSDT](https://github.com/Zeqiang-Lai/HSDT) model using pytorch lightning.
 - Enable training on multiple-GPU with distributed data parallel (DDP)
 - Control training & testing with yaml config files
