@@ -18,9 +18,10 @@ class HSDTLightning(L.LightningModule):
         channels: int = 6,
         encoder_count: int = 5,
         downsample_layers: List[int] = [1, 3],
+        num_bands: int = 81,
     ):
         super().__init__()
-        self.model = HSDT(in_channels, channels, encoder_count, downsample_layers)
+        self.model = HSDT(in_channels, channels, encoder_count, downsample_layers, num_bands)
 
         # For saving the hyperparameters to saved logs & checkpoints
         self.save_hyperparameters()
