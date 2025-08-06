@@ -29,6 +29,11 @@ pip install -r requirements.txt
 python main.py fit --config config/train.yaml
 ```
 
+### 🔧 Training from a checkpoint
+```bash
+python main.py fit --config config/train.yaml --ckpt_path checkpoint/hsdt-epoch10.ckpt
+```
+
 ### ✅ Validation
 ```bash
 python main.py validate --config config/train.yaml
