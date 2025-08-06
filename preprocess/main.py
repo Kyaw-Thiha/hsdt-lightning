@@ -4,9 +4,9 @@ from preprocess.clean_mat import clean_mat
 from preprocess.add_gaussian_noise import add_gaussian_noise
 from preprocess.downsample import load_downsample_save
 
-FILE_PATH = "../data"
+FILE_PATH = "data"
 
-SPATIAL_TARGET = (128, 128)
+SPATIAL_TARGET = (-1, -1)
 SPATIAL_FACTOR = 64
 OUT_BANDS = 81
 GAUSSIAN_NOISES = [30, 50, 70]

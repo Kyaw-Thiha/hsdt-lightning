@@ -35,7 +35,7 @@ def clean_mat(input_dir: str, output_dir: str):
         if img is None:
             print(f"[!] Warning: No valid array found in {fname}")
             continue
-        print(f"Transposed shape (C, H, W): {img.shape}")
+        print(f"Transposed shape (H, W, C): {img.shape}")
 
         output_fname = os.path.splitext(fname)[0] + ".mat"
 
