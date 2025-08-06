@@ -29,7 +29,7 @@ trainer:
         mode: "max"
         save_top_k: 1
         dirpath: "checkpoints/best/"
-        filename: "best-hsdt-epoch{epoch:03d}-val_ssim{val_ssim:.4f}"
+        filename: "epoch_{epoch}-ssim_{val_ssim:.4f}"
         save_last: false
 
     # Save best model based on PSNR
@@ -39,7 +39,7 @@ trainer:
         mode: "max"
         save_top_k: 1
         dirpath: "checkpoints/best/"
-        filename: "best-hsdt-epoch{epoch:03d}-val_psnr{val_psnr:.2f}"
+        filename: "epoch_{epoch}-psnr_{val_psnr:.2f}"
         save_last: false
 
     # Save every 5 epochs (regardless of score)
@@ -48,7 +48,7 @@ trainer:
         every_n_epochs: 5
         save_top_k: -1
         dirpath: "checkpoints/interval/"
-        filename: "hsdt-epoch{epoch:03d}"
+        filename: "epoch-{epoch}"
         save_last: false
   fast_dev_run: false
 
