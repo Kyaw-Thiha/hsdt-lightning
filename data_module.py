@@ -1,9 +1,11 @@
+import os
 import random
 from typing import List, Optional
-import lightning as L
 
+import lightning as L
 import torch
 from torch.utils.data import Dataset, random_split, DataLoader
+import kornia.augmentation as K
 
 from preprocess.main import preprocess
 from dataset import HSIDataset
@@ -24,6 +26,7 @@ class HSIDataModule(L.LightningDataModule):
         gaussian_noises (List[int]): List of Gaussian noise levels used (e.g., [30, 50, 70]).
         patch_test (bool): Whether to apply patch extraction to test dataset.
         batch_size (int): Number of samples per batch.
+        num_workers (int): Number of CPU cores used for data loading
     """
 
     def __init__(
@@ -35,6 +38,7 @@ class HSIDataModule(L.LightningDataModule):
         gaussian_noises: List[int] = [30, 50, 70],
         patch_test: bool = True,
         batch_size: int = 32,
+        num_workers: int = 0,
     ):
         super().__init__()
         self.base_dir: str = base_dir
@@ -44,6 +48,11 @@ class HSIDataModule(L.LightningDataModule):
         self.gaussian_noises: List[int] = gaussian_noises
         self.patch_test: bool = patch_test
         self.batch_size: int = batch_size
+
+        self.num_workers = num_workers
+        cpu_count = os.cpu_count()
+        if num_workers == 0 and cpu_count is not None:
+            self.num_workers = cpu_count // 2
 
         # Internal dataset handles
         self.dataset_train: Optional[Dataset] = None
@@ -98,22 +107,22 @@ class HSIDataModule(L.LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         if self.dataset_train is None:
             self.dataset_train = Dataset()
-        return DataLoader(self.dataset_train, batch_size=self.batch_size, shuffle=True)
+        return DataLoader(self.dataset_train, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
 
     def val_dataloader(self) -> DataLoader:
         if self.dataset_val is None:
             self.dataset_val = Dataset()
-        return DataLoader(self.dataset_val, batch_size=self.batch_size)
+        return DataLoader(self.dataset_val, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def test_dataloader(self) -> DataLoader:
         if self.dataset_test is None:
             self.dataset_test = Dataset()
-        return DataLoader(self.dataset_test, batch_size=self.batch_size)
+        return DataLoader(self.dataset_test, batch_size=self.batch_size, num_workers=self.num_workers)
 
 
 class HSITransform:
     """
-    Apply random augmentations to a hyperspectral (C, H, W) tensor:
+    Apply random augmentations to a hyperspectral (1, D, H, W) tensor:
     - Random horizontal flip
     - Random vertical flip
     - Random 90° rotation
@@ -127,25 +136,25 @@ class HSITransform:
         self.crop_size = crop_size
 
     def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
-        assert tensor.ndim == 5, "Expected tensor of shape (B, C, D, H, W)"
-        B, C, D, H, W = tensor.shape
+        assert tensor.ndim == 4, "Expected tensor of shape (1, D, H, W)"
+        _, D, H, W = tensor.shape
         assert H >= self.crop_size and W >= self.crop_size, "Image too small for cropping."
 
         # Random horizontal flip
         if random.random() > 0.5:
-            tensor = torch.flip(tensor, dims=[2])  # Flip width
+            tensor = torch.flip(tensor, dims=[3])  # Flip width (W axis)
 
         # Random vertical flip
         if random.random() > 0.5:
-            tensor = torch.flip(tensor, dims=[1])  # Flip height
+            tensor = torch.flip(tensor, dims=[2])  # Flip height (H axis)
 
         # Random 90° rotation (0, 90, 180, 270 degrees)
         k = random.choice([0, 1, 2, 3])
-        tensor = torch.rot90(tensor, k=k, dims=[1, 2])
+        tensor = torch.rot90(tensor, k=k, dims=[2, 3])  # rotate in H-W plane
 
         # Random crop
         top = random.randint(0, H - self.crop_size)
         left = random.randint(0, W - self.crop_size)
-        tensor = tensor[:, top : top + self.crop_size, left : left + self.crop_size]
+        tensor = tensor[:, :, top : top + self.crop_size, left : left + self.crop_size]
 
         return tensor

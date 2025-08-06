@@ -32,40 +32,52 @@ class HSIDataset(Dataset):
         self.transform = transform
         self.patch_size = patch_size
         self.stride_size = stride_size
-        self.files: List[str] = []
+        self.patches: List[Tuple[torch.Tensor, torch.Tensor]] = []
 
     def add_files(self, folder_name: str):
         data_dir = os.path.join(self.base_dir, folder_name)
         mat_files = [f for f in os.listdir(data_dir) if f.endswith(".mat")]
         mat_files.sort()
-        self.files.extend([os.path.join(data_dir, f) for f in mat_files])
+        files = [os.path.join(data_dir, f) for f in mat_files]
+
+        for mat_file in files:
+            mat = loadmat(mat_file)
+
+            noisy = mat["gt"]  # Noisy image
+            clean = mat["input"]  # Clean image
+
+            # Ensure (C, H, W) format if needed
+            if noisy.ndim == 3:
+                # From (H, W, C) to (C, H, W)
+                noisy = np.transpose(noisy, (2, 0, 1))
+                clean = np.transpose(clean, (2, 0, 1))
+
+                noisy_tensor = torch.tensor(noisy, dtype=torch.float32)
+                clean_tensor = torch.tensor(clean, dtype=torch.float32)
+
+                # List of P tensors with shape (C, H, W)
+                if self.patch_size is not None and self.stride_size is not None:
+                    noisy_tensor = extract_patches(noisy_tensor, self.patch_size, self.stride_size)
+                    clean_tensor = extract_patches(clean_tensor, self.patch_size, self.stride_size)
+                    noisy_tensor = list(noisy_tensor.unbind(dim=0))
+                    clean_tensor = list(clean_tensor.unbind(dim=0))
+                else:
+                    noisy_tensor = [noisy_tensor]
+                    clean_tensor = [clean_tensor]
+
+                # Creating list of tuples of (noisy_tensor, clean_tensor)
+                paired_patches = list(zip(noisy_tensor, clean_tensor))
+                self.patches.extend(paired_patches)
 
     def __len__(self) -> int:
-        return len(self.files)
+        return len(self.patches)
 
     def __getitem__(self, idx: int):
-        file_path = self.files[idx]
-        mat = loadmat(file_path)
+        noisy_tensor, clean_tensor = self.patches[idx]
 
-        noisy = mat["gt"]  # Noisy image
-        clean = mat["input"]  # Clean image
-
-        # Ensure (C, H, W) format if needed
-        if noisy.ndim == 3:
-            # From (H, W, C) to (C, H, W)
-            noisy = np.transpose(noisy, (2, 0, 1))
-            clean = np.transpose(clean, (2, 0, 1))
-
-        noisy_tensor = torch.tensor(noisy, dtype=torch.float32)
-        clean_tensor = torch.tensor(clean, dtype=torch.float32)
-
-        if self.patch_size is not None and self.stride_size is not None:
-            noisy_tensor = extract_patches(noisy_tensor, self.patch_size, self.stride_size)
-            clean_tensor = extract_patches(clean_tensor, self.patch_size, self.stride_size)
-
-            # Add dummy channel dimension
-            noisy_tensor = noisy_tensor.unsqueeze(1)  # [N, 1, C, H, W]
-            clean_tensor = clean_tensor.unsqueeze(1)
+        # Add channel dimension
+        noisy_tensor = noisy_tensor.unsqueeze(0)  # (1, C, H, W)
+        clean_tensor = clean_tensor.unsqueeze(0)
 
         if self.transform:
             noisy_tensor = self.transform(noisy_tensor)
