@@ -74,9 +74,7 @@ def UpConv(in_ch: int, out_ch: int) -> nn.Sequential:
             [
                 (
                     "up",
-                    nn.Upsample(
-                        scale_factor=(1, 2, 2), mode="trilinear", align_corners=True
-                    ),
+                    nn.Upsample(scale_factor=(1, 2, 2), mode="trilinear", align_corners=True),
                 ),
                 ("conv", nn.Conv3d(in_ch, out_ch, 3, 1, 1, bias=False)),
                 ("bn", BatchNorm3d(out_ch) if UseBN else nn.Identity()),
@@ -93,9 +91,7 @@ class Encoder(nn.Module):
     Downsampling is applied at layers specified by sample_idx.
     """
 
-    def __init__(
-        self, channels: int, num_half_layer: int, downsample_layers: List[int]
-    ):
+    def __init__(self, channels: int, num_half_layer: int, downsample_layers: List[int]):
         super().__init__()
         self.layers = nn.ModuleList()
         for i in range(num_half_layer):
@@ -206,8 +202,8 @@ class HSDT(nn.Module):
 
     Example:
         model = HSDT(in_channels=1, channels=16, num_half_layer=5, downsample_layers=[1, 3])
-        x = torch.randn(1, 1, 31, 128, 128)
-        out = model(x)  # shape: (1, 1, 31, 128, 128)
+        x = torch.randn(1, 1, 81, 128, 128)
+        out = model(x)  # shape: (1, 1, 81, 128, 128)
     """
 
     def __init__(
@@ -230,6 +226,9 @@ class HSDT(nn.Module):
         self.tail = nn.Conv3d(channels, 1, 3, 1, 1, bias=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        B, C, D, H, W = x.shape
+        self.set_num_bands_recursively(num_bands=D)
+
         xs: List[torch.Tensor] = [x]
         out = self.head(x)
         xs.append(out)
@@ -240,9 +239,18 @@ class HSDT(nn.Module):
         out = out + xs.pop()[:, 0:1, :, :, :]  # final residual connection
         return out
 
-    def load_state_dict(
-        self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False
-    ):
+    def set_num_bands_recursively(self, num_bands: int):
+        """
+        Dynamically set num_bands in all TransformerBlocks
+
+        Args:
+            num_bands (int): Number of spectral bands.
+        """
+        for m in self.modules():
+            if isinstance(m, TransformerBlock):
+                m.set_num_bands(num_bands)
+
+    def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False):
         """
         Load a state dict with optional reshaping for convolutional attention weights.
 

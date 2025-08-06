@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 import torch
 from torch import Tensor
 from torch.optim import Optimizer
@@ -27,19 +27,21 @@ class HSDTLightning(L.LightningModule):
 
         # For displaying the intermediate input and output sizes of all the layers
         batch_size = 32
+        batch = 1
+        channel = 1
         spectral_band = 81
         spatial_patch = 64
-        self.example_input_array = torch.Tensor(batch_size, spectral_band, spatial_patch, spatial_patch)
+        self.example_input_array = torch.Tensor(batch, channel, spectral_band, spatial_patch, spatial_patch)
 
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         input, target = batch
-        output = self.model(input, target)
+        output = self.model(input)
         loss = F.mse_loss(output, target)
         return loss
 
     def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         input, target = batch
-        output = self.model(input, target)
+        output = self.model(input)
 
         loss = F.mse_loss(output, target)
         ssim = compute_batch_mssim(output, target)
@@ -52,7 +54,7 @@ class HSDTLightning(L.LightningModule):
 
     def test_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         input, target = batch
-        output = self.model(input, target)
+        output = self.model(input)
 
         loss = F.mse_loss(output, target)
         ssim = compute_batch_mssim(output, target)
@@ -63,6 +65,11 @@ class HSDTLightning(L.LightningModule):
         self.log("test_psnr", psnr, prog_bar=True)
 
         return loss
+
+    # Only for smoke test run.
+    # Not used in actual training
+    def forward(self, x: torch.Tensor, y: Optional[torch.Tensor] = None) -> torch.Tensor:
+        return self.model(x)
 
 
 def configure_optimizers(self):

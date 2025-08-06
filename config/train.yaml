@@ -87,8 +87,6 @@ trainer:
     init_args:
       dirpath: "logs"
       filename: "profiler.txt"
-      row_limit: 200  # Number of modules/layers to show
-      sort_by_key: "cuda_time_total"
 
   detect_anomaly: false
   barebones: false
@@ -105,7 +103,7 @@ model:
   - 1
   - 3
 data:
-  base_dir: null
+  base_dir: "data"
   spatial_factor: 64
   out_bands: 81
   preprocess_data: false

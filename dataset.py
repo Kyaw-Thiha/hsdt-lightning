@@ -63,6 +63,10 @@ class HSIDataset(Dataset):
             noisy_tensor = extract_patches(noisy_tensor, self.patch_size, self.stride_size)
             clean_tensor = extract_patches(clean_tensor, self.patch_size, self.stride_size)
 
+            # Add dummy channel dimension
+            noisy_tensor = noisy_tensor.unsqueeze(1)  # [N, 1, C, H, W]
+            clean_tensor = clean_tensor.unsqueeze(1)
+
         if self.transform:
             noisy_tensor = self.transform(noisy_tensor)
             clean_tensor = self.transform(clean_tensor)

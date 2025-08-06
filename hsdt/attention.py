@@ -204,9 +204,7 @@ class GDFN(nn.Module):
     def __init__(self, d_model, d_ff, bias=False):
         super(GDFN, self).__init__()
         self.project_in = nn.Conv3d(d_model, d_ff, kernel_size=1, bias=bias)
-        self.dwconv = nn.Conv3d(
-            d_ff, d_ff, kernel_size=3, stride=1, padding=1, groups=d_ff, bias=bias
-        )
+        self.dwconv = nn.Conv3d(d_ff, d_ff, kernel_size=3, stride=1, padding=1, groups=d_ff, bias=bias)
         self.project_out = nn.Conv3d(d_model, d_model, kernel_size=1, bias=bias)
 
     def forward(self, input):
@@ -239,9 +237,25 @@ class FFN(nn.Module):
 class TransformerBlock(nn.Module):
     def __init__(self, channels, num_bands=31, bias=False, flex=False):
         super().__init__()
-        self.channels = channels
-        self.attn = GSSA(channels, num_bands, flex=flex)
+        self.attn = nn.Identity()
         self.ffn = SMFFN(channels, channels * 2, bias=bias)
+        self.channels = channels
+        self.num_bands = num_bands
+        self.flex = flex
+        self.bias = bias
+
+    def set_num_bands(self, num_bands: int):
+        """
+        Dynamically set num_bands
+
+        Args:
+            num_bands (int): Number of spectral bands.
+        """
+        if self.num_bands != num_bands:
+            attn = GSSA(self.channels, num_bands, flex=self.flex)
+            self.add_module("attn", attn)  # registers it
+            setattr(self, "attn", attn)  # overwrites attribute for forward
+            self.num_bands = num_bands
 
     def forward(self, inputs):
         r, _ = self.attn(inputs)
