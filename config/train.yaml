@@ -8,6 +8,21 @@ model:
   - 1
   - 3
   num_bands: 81   # No. of spectral bands
+  lr: 3e-4        # TODO: Replace this with the value you get from lr finder
+
+data:
+  base_dir: "data"
+  spatial_factor: 64
+  out_bands: 81
+  preprocess_data: false
+  gaussian_noises:
+  - 30
+  # - 50
+  # - 70
+  patch_test: true
+  batch_size: 32    # TODO: Replace this with the value you get from batch size finder
+  num_workers: 0
+
 trainer:
   accelerator: auto
   strategy: auto
@@ -21,6 +36,13 @@ trainer:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
       init_args:
         logging_interval: 'epoch'
+
+    # Stochastic Weight Averaging
+    # Disabled as it is not compatible with SingleCycleLR 
+    # - class_path: lightning.pytorch.callbacks.StochasticWeightAveraging
+    #   init_args:
+    #     swa_lrs: None         
+    #     swa_epoch_start: 0.8  # start SWA at 80% of training
 
     # Save best model based on SSIM
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
@@ -96,29 +118,4 @@ trainer:
   reload_dataloaders_every_n_epochs: 0
   default_root_dir: null
   model_registry: null
-data:
-  base_dir: "data"
-  spatial_factor: 64
-  out_bands: 81
-  preprocess_data: false
-  gaussian_noises:
-  - 30
-  # - 50
-  # - 70
-  patch_test: true
-  batch_size: 32
-  num_workers: 0
-optimizer:
-  class_path: torch.optim.AdamW
-  init_args:
-    lr: 3e-4
-    weight_decay: 1e-2
-lr_scheduler:
-  class_path: torch.optim.lr_scheduler.OneCycleLR
-  init_args:
-    max_lr: 3e-4
-    total_steps: 10000   # or use trainer.max_steps if known
-    pct_start: 0.1       # 10% warm-up
-    anneal_strategy: "cos"
-    cycle_momentum: False
 ckpt_path: null

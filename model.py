@@ -1,11 +1,12 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, cast
 import torch
 from torch import Tensor
 from torch.optim import Optimizer
 import torch.nn.functional as F
 import lightning as L
 from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
+from lightning.pytorch.utilities.types import LRSchedulerConfig, OptimizerLRScheduler
 
 from hsdt import HSDT
 from metrics.psnr import compute_batch_mpsnr
@@ -20,12 +21,14 @@ class HSDTLightning(L.LightningModule):
         encoder_count: int = 5,
         downsample_layers: List[int] = [1, 3],
         num_bands: int = 81,
+        lr: float = 3e-4,  # 3e-4 is Good for Adam + > 32 batch size
     ):
         super().__init__()
         self.model = HSDT(in_channels, channels, encoder_count, downsample_layers, num_bands)
 
         # For saving the hyperparameters to saved logs & checkpoints
         self.save_hyperparameters()
+        self.lr: float = lr
 
         # For displaying the intermediate input and output sizes of all the layers
         batch_size = 32
@@ -79,24 +82,31 @@ class HSDTLightning(L.LightningModule):
         summary = ModelSummary(self, max_depth=2)
         print(summary)
 
+        if self.lr:
+            for optimizer in self.trainer.optimizers:
+                for pg in optimizer.param_groups:
+                    pg["lr"] = self.lr
+
     # Only for smoke test run.
     # Not used in actual training
     def forward(self, x: torch.Tensor, y: Optional[torch.Tensor] = None) -> torch.Tensor:
         return self.model(x)
 
-
-def configure_optimizers(self):
-    optimizer = torch.optim.AdamW(self.parameters(), lr=3e-4, weight_decay=1e-2)
-    scheduler = {
-        "scheduler": torch.optim.lr_scheduler.OneCycleLR(
-            optimizer,
-            max_lr=3e-4,
-            total_steps=self.trainer.estimated_stepping_batches,
-            pct_start=0.1,
-            anneal_strategy="cos",
-            cycle_momentum=False,
-        ),
-        "interval": "step",
-        "frequency": 1,
-    }
-    return {"optimizer": optimizer, "lr_scheduler": scheduler}
+    def configure_optimizers(self) -> OptimizerLRScheduler:
+        optimizer: OptimizerLRScheduler = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-2)
+        scheduler = cast(
+            LRSchedulerConfig,
+            {
+                "scheduler": torch.optim.lr_scheduler.OneCycleLR(
+                    optimizer,
+                    max_lr=self.lr,
+                    total_steps=int(self.trainer.estimated_stepping_batches),
+                    pct_start=0.1,  # 10% Warm Start
+                    anneal_strategy="cos",
+                    cycle_momentum=False,  # Make it true only for momentum based optimizers like SGD
+                ),
+                "interval": "step",
+                "frequency": 1,
+            },
+        )
+        return [optimizer], [scheduler]

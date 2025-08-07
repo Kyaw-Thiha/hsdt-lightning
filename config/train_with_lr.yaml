@@ -1,13 +1,7 @@
-# Local version of train.yaml that use batch size of 2
+# This is a variant of train.yaml that includes the LR.
+# Note that currently, these LR are overriden inside LightningModule in model.py
 # lightning.pytorch==2.5.2
 seed_everything: true
-
-# Tuner Settings
-# run_lr_finder: True
-# show_lr_plot: True
-# run_batch_size_finder: True
-# batch_size_finder_mode: "power"
-
 model:
   in_channels: 1
   channels: 6
@@ -16,27 +10,16 @@ model:
   - 1
   - 3
   num_bands: 81   # No. of spectral bands
-  lr: 3e-4        # TODO: Replace this with the value you get from lr finder
-
-data:
-  base_dir: "data"
-  spatial_factor: 64
-  out_bands: 81
-  preprocess_data: false
-  gaussian_noises:
-  - 30
-  # - 50
-  # - 70
-  patch_test: true
-  batch_size: 2    # TODO: Replace this with the value you get from batch size finder
-  num_workers: 0
-
+  lr: 3e-4        # default value (will be overriden)
 trainer:
   accelerator: auto
   strategy: auto
   devices: auto
   num_nodes: 1
   
+  # Using 16-bit mixed precision
+  precision: "16-mixed"
+
   callbacks:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
       init_args:
@@ -109,18 +92,44 @@ trainer:
   inference_mode: true
   use_distributed_sampler: true
 
-  # Profiler 
-  # profiler:
-  #   class_path: lightning.pytorch.profilers.AdvancedProfiler
-  #   init_args:
-  #     dirpath: "logs"
-  #     filename: "profiler.txt"
-
   detect_anomaly: false
   barebones: false
   plugins: null
   sync_batchnorm: false
   reload_dataloaders_every_n_epochs: 0
-  default_root_dir: checkpoints
+  default_root_dir: null
   model_registry: null
+data:
+  base_dir: "data"
+  spatial_factor: 64
+  out_bands: 81
+  preprocess_data: false
+  gaussian_noises:
+  - 30
+  # - 50
+  # - 70
+  patch_test: true
+  batch_size: 32    # default value (will be overriden)
+  num_workers: 0
+optimizer:
+  class_path: torch.optim.AdamW
+  init_args:
+    lr: 3e-4
+    weight_decay: 1e-2
+lr_scheduler:
+  # One Cycle Learning Rate
+  class_path: torch.optim.lr_scheduler.OneCycleLR
+  init_args:
+    max_lr: 3e-4
+    total_steps: 10000   # or use trainer.max_steps if known
+    pct_start: 0.1       # 10% warm-up
+    anneal_strategy: "cos"
+    cycle_momentum: False
+    
+  # Repeating Cosine Cycle Learning Rate
+  class_path: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+  init_args:
+    T_0: 391  # steps per epoch (Dataset / (Batch Size * GPU No.))
+    T_mult: 2 # Factor of increasing period of cosine (currently double)
+    eta_min: 1e-5
 ckpt_path: null

@@ -41,6 +41,16 @@ Run this when you want to see if your code is running or not.
 python main.py fit --config config/train_local.yaml --trainer.profiler=null --trainer.fast_dev_run=True
 ```
 
+### 🔧 Best batch finder
+```bash
+python main.py fit --config config/train.yaml --run_batch_size_finder true --batch_size_finder_mode power
+```
+
+### 🔧 Best learning rate finder
+```bash
+python main.py fit --config config/train.yaml --run_lr_finder true --show_lr_plot true
+```
+
 
 ### ✅ Validation
 ```bash
