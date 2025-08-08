@@ -23,9 +23,10 @@ apt install -y python3.11 python3.11-venv python3.11-dev
 
 echo "📁 Setting up virtual environment at $VENV_DIR..."
 cd "$PROJECT_DIR"
-if [[ -n "$VIRTUAL_ENV" ]]; then
-  deactivate
-fi
+# if [[ -n "$VIRTUAL_ENV" ]]; then
+#   deactivate
+# fi
+deactivate
 rm -rf .env
 python3.11 -m venv .env
 
