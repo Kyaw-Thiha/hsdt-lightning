@@ -38,7 +38,7 @@ class HSDTLightningCLI(LightningCLI):
 
                 if new_batch_size is None:
                     print("⚠️ Could not find optimal batch size")
-            exit()
+            exit(0)
 
         # ----------------------------------
         # Finding Optimal Learning Rate
@@ -63,7 +63,7 @@ class HSDTLightningCLI(LightningCLI):
                     print(f"\n🔎 Suggested Learning Rate: {suggested_lr:.2e}")
                 else:
                     print("⚠️ Could not find optimal learning rate")
-            exit()
+            exit(0)
 
 
 def cli_main():
