@@ -11,6 +11,7 @@ model:
   - 3
   num_bands: 81   # No. of spectral bands
   lr: 3e-4        # default value (will be overriden)
+  save_test: false
 trainer:
   accelerator: auto
   strategy: auto

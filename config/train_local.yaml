@@ -17,6 +17,7 @@ model:
   - 3
   num_bands: 81   # No. of spectral bands
   lr: 3e-4        # TODO: Replace this with the value you get from lr finder
+  save_test: false
 
 data:
   base_dir: "data"

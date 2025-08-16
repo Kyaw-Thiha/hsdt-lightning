@@ -1,5 +1,6 @@
 import os
 from typing import List, Optional, cast
+from scipy.io import savemat
 import torch
 from torch import Tensor
 from torch.optim import Optimizer
@@ -22,6 +23,7 @@ class HSDTLightning(L.LightningModule):
         downsample_layers: List[int] = [1, 3],
         num_bands: int = 81,
         lr: float = 3e-4,  # 3e-4 is Good for Adam + > 32 batch size
+        save_test: bool = False,
     ):
         super().__init__()
         self.model = HSDT(in_channels, channels, encoder_count, downsample_layers, num_bands)
@@ -37,6 +39,10 @@ class HSDTLightning(L.LightningModule):
         spectral_band = 81
         spatial_patch = 64
         self.example_input_array = torch.Tensor(batch, channel, spectral_band, spatial_patch, spatial_patch)
+
+        # For saving test images
+        self.save_test = save_test
+        self.save_folder = "data/output"
 
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         input, target = batch
@@ -56,6 +62,9 @@ class HSDTLightning(L.LightningModule):
         self.log("val_loss", loss)
         self.log("val_ssim", ssim, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val_psnr", psnr, on_step=False, on_epoch=True, prog_bar=True)
+
+        if self.save_test:
+            savemat(f"{self.save_folder}/batch-{batch_idx}", output)
         return loss
 
     def test_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
