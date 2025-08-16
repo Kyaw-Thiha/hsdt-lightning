@@ -78,7 +78,10 @@ class HSDTLightning(L.LightningModule):
         self.log("test_psnr", psnr, prog_bar=True)
 
         if self.save_test:
-            savemat(f"{self.save_folder}/batch-{batch_idx}", output)
+            os.makedirs(self.save_folder, exist_ok=True)
+            output_np = output.detach().cpu().numpy()
+            output_np = output_np[0][0]  # First batch, first patch
+            savemat(f"{self.save_folder}/batch-{batch_idx}.mat", {"input": output_np})
 
         return loss
 
