@@ -26,7 +26,7 @@ cd "$PROJECT_DIR"
 # if [[ -n "$VIRTUAL_ENV" ]]; then
 #   deactivate
 # fi
-deactivate
+# deactivate
 rm -rf .env
 python3.11 -m venv .env
 
