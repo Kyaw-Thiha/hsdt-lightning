@@ -63,8 +63,6 @@ class HSDTLightning(L.LightningModule):
         self.log("val_ssim", ssim, on_step=False, on_epoch=True, prog_bar=True)
         self.log("val_psnr", psnr, on_step=False, on_epoch=True, prog_bar=True)
 
-        if self.save_test:
-            savemat(f"{self.save_folder}/batch-{batch_idx}", output)
         return loss
 
     def test_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
@@ -78,6 +76,9 @@ class HSDTLightning(L.LightningModule):
         self.log("test_loss", loss)
         self.log("test_ssim", ssim, prog_bar=True)
         self.log("test_psnr", psnr, prog_bar=True)
+
+        if self.save_test:
+            savemat(f"{self.save_folder}/batch-{batch_idx}", output)
 
         return loss
 
