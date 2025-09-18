@@ -45,6 +45,7 @@ def clean_mat(input_dir: str, output_dir: str):
             {"input": img, "gt": img},
         )
         print(f"[✓] Cleaned and saved: {fname}")
+        print("-----------------")
 
 
 def process_mat(img_path: str):
@@ -120,7 +121,7 @@ def change_shape(img: np.ndarray) -> np.ndarray:
         [5]: (C, W, H)  
         [6]: (W, C, H)  
     """)
-    transpose_choice = input("What is the shape of the image [1-6 or space to skip]: ")
+    transpose_choice = input("What is the shape of the image [1-6 or <enter> to skip]: ")
     if transpose_choice != "":
         transpose_choice = int(transpose_choice)
         match transpose_choice:
