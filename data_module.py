@@ -153,8 +153,8 @@ class HSITransform:
         tensor = torch.rot90(tensor, k=k, dims=[2, 3])  # rotate in H-W plane
 
         # Random crop
-        top = random.randint(0, H - self.crop_size)
-        left = random.randint(0, W - self.crop_size)
-        tensor = tensor[:, :, top : top + self.crop_size, left : left + self.crop_size]
+        # top = random.randint(0, H - self.crop_size)
+        # left = random.randint(0, W - self.crop_size)
+        # tensor = tensor[:, :, top : top + self.crop_size, left : left + self.crop_size]
 
         return tensor
