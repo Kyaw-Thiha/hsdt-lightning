@@ -6,17 +6,24 @@ from scipy.io import loadmat, savemat
 FILE_PATH = "../data"
 
 
-def add_gaussian_noise(input_folder: str, output_folder: str, snr_db: int, clip: Tuple[int, int] = (-1, -1)):
+def add_gaussian_noise(
+    input_folder: str, output_folder: str, sigma: float = -1.0, snr_db: int = -1, clip: Tuple[int, int] = (-1, -1)
+):
     """
     Add Gaussian noise to all .mat files in a folder.
 
     Parameters:
         input_folder (str): Path to folder containing clean .mat files.
         output_folder (str): Path to save noisy .mat files.
-        # sigma (float): Standard deviation of Gaussian noise.
+        sigma (float): Standard deviation of Gaussian noise.
         snr_db (int): Signal to Noise ratio in dB units
         clip (Tuple(int, int): Will clip the noised image to (clip[0], clip[1]).
     """
+    assert sigma > 0 or snr_db > 0, f"Either sigma or snr_db must be positive. Received Sigma: {sigma} and SNR: {snr_db}"
+
+    # Since we normalized our image data [0-1], we need to normalize the noise too
+    if sigma > 1:
+        sigma = sigma / 255
 
     os.makedirs(output_folder, exist_ok=True)
 
@@ -32,12 +39,14 @@ def add_gaussian_noise(input_folder: str, output_folder: str, snr_db: int, clip:
             if key.startswith("__"):
                 continue
             if isinstance(value, np.ndarray) and key != "gt":
-                sigma = estimate_sigma_from_snr(value, snr_db)
+                if sigma < 0:
+                    sigma = estimate_sigma_from_snr(value, snr_db)
+                print(f"Noise Level: {sigma}")
                 noise = np.random.normal(0, sigma, size=value.shape)
 
                 value = value + noise
                 clip_lower, clip_upper = clip
-                if clip_lower > 0 and clip_upper > 0:
+                if clip_lower != -1 and clip_upper != -1:
                     noisy_data[key] = np.clip(value, clip_lower, clip_upper)
                 else:
                     noisy_data[key] = value

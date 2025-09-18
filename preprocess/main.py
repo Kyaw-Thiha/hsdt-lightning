@@ -9,7 +9,7 @@ FILE_PATH = "data"
 SPATIAL_TARGET = (-1, -1)
 SPATIAL_FACTOR = 64
 OUT_BANDS = 81
-GAUSSIAN_NOISES = [30, 50, 70]
+GAUSSIAN_NOISES = [30, 50, 70]  # They will automatically get normalized in add_gaussian_noise function
 
 
 def preprocess(
@@ -45,9 +45,9 @@ def preprocess(
 
     for gaussian_noise in gaussian_noises:
         print(f"Generating noisy images of Sigma-{gaussian_noise}")
-        add_gaussian_noise(f"{file_path}/clean", f"{file_path}/gaussian_{gaussian_noise}", snr_db=gaussian_noise, clip=(0, 1))
+        add_gaussian_noise(f"{file_path}/clean", f"{file_path}/gaussian_{gaussian_noise}", sigma=gaussian_noise, clip=(0, 1))
         add_gaussian_noise(
-            f"{file_path}/test_clean", f"{file_path}/test_gaussian_{gaussian_noise}", snr_db=gaussian_noise, clip=(0, 1)
+            f"{file_path}/test_clean", f"{file_path}/test_gaussian_{gaussian_noise}", sigma=gaussian_noise, clip=(0, 1)
         )
         print("-------------------------------------")
 
