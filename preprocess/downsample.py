@@ -154,6 +154,7 @@ def downsample(
 
 def normalize_image(img: np.ndarray) -> np.ndarray:
     """
+    Min-Max Normalization
     Normalize the image data to the range [0, 1].
     """
     min_val = np.min(img)
