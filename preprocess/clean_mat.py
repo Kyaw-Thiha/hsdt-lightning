@@ -35,6 +35,7 @@ def clean_mat(input_dir: str, output_dir: str):
         if img is None:
             print(f"[!] Warning: No valid array found in {fname}")
             continue
+        img = change_shape(img)  # --> (H, W, C)
         print(f"Transposed shape (H, W, C): {img.shape}")
 
         output_fname = os.path.splitext(fname)[0] + ".mat"
@@ -106,6 +107,36 @@ def process_tif(img_path: str) -> Optional[np.ndarray]:
         return img
     else:
         print(f"[❌] Error: Unexpected array shape {img.shape} in {img_path}")
+
+
+def change_shape(img: np.ndarray) -> np.ndarray:
+    assert img.ndim == 3, "The image must have 3 dimensions"
+    print(f"Shape of the image: {img.shape}")
+    print("""
+        [1]: (H, W, C)  
+        [2]: (C, H, W)  
+        [3]: (H, C, W)  
+        [4]: (W, H, C)  
+        [5]: (C, W, H)  
+        [6]: (W, C, H)  
+    """)
+    transpose_choice = input("What is the shape of the image [1-6 or space to skip]: ")
+    if transpose_choice != "":
+        transpose_choice = int(transpose_choice)
+        match transpose_choice:
+            case 1:
+                print("No need to transpose")
+            case 2:
+                img = img.transpose(1, 2, 0)
+            case 3:
+                img = img.transpose(0, 2, 1)
+            case 4:
+                img = img.transpose(1, 0, 2)
+            case 5:
+                img = img.transpose(2, 1, 0)
+            case 6:
+                img = img.transpose(1, 2, 0)
+    return img
 
 
 if __name__ == "__main__":
