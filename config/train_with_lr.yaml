@@ -4,7 +4,7 @@
 seed_everything: true
 model:
   in_channels: 1
-  channels: 6
+  channels: 16
   encoder_count: 5
   downsample_layers:
   - 1

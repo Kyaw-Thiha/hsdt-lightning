@@ -18,7 +18,7 @@ class HSDTLightning(L.LightningModule):
     def __init__(
         self,
         in_channels: int = 1,
-        channels: int = 6,
+        channels: int = 16,
         encoder_count: int = 5,
         downsample_layers: List[int] = [1, 3],
         num_bands: int = 81,
