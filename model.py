@@ -107,16 +107,24 @@ class HSDTLightning(L.LightningModule):
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         optimizer: OptimizerLRScheduler = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-2)
+
+        # NOTE: this assumes dataloader size/limits is not changed mid-run.
+        assert self.trainer.max_epochs is not None, "self.train.max_epochs is None!!!"
+        steps_per_epoch = int(self.trainer.estimated_stepping_batches / self.trainer.max_epochs)
+
         scheduler = cast(
             LRSchedulerConfig,
             {
                 "scheduler": torch.optim.lr_scheduler.OneCycleLR(
                     optimizer,
                     max_lr=self.lr,
-                    total_steps=int(self.trainer.estimated_stepping_batches),
-                    pct_start=0.1,  # 10% Warm Start
+                    epochs=self.trainer.max_epochs,
+                    steps_per_epoch=steps_per_epoch,
+                    pct_start=0.35,  # 35% Warm Start
                     anneal_strategy="cos",
                     cycle_momentum=False,  # Make it true only for momentum based optimizers like SGD
+                    div_factor=25.0,  # start at lr/25
+                    final_div_factor=1_000.0,  # end at lr/1000
                 ),
                 "interval": "step",
                 "frequency": 1,
