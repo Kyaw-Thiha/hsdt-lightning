@@ -68,13 +68,13 @@ class HSDTLightning(L.LightningModule):
 
     def test_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         input, target = batch
-        output = self.model(input)
+        output: Tensor = self.model(input)
 
         # loss = F.mse_loss(output, target)
         loss = charbonnier_loss(output, target, eps=1e-3)
 
-        ssim = compute_batch_mssim(output, target)
-        psnr = compute_batch_mpsnr(output, target)
+        ssim = compute_batch_mssim(output.clamp(0, 1), target)
+        psnr = compute_batch_mpsnr(output.clamp(0, 1), target)
 
         self.log("test_loss", loss)
         self.log("test_ssim", ssim, prog_bar=True)
@@ -109,7 +109,7 @@ class HSDTLightning(L.LightningModule):
         return self.model(x)
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        optimizer: OptimizerLRScheduler = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-2)
+        optimizer: OptimizerLRScheduler = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-2, betas=(0.9, 0.98))
 
         # NOTE: this assumes dataloader size/limits is not changed mid-run.
         assert self.trainer.max_epochs is not None, "self.train.max_epochs is None!!!"
