@@ -12,6 +12,7 @@ from lightning.pytorch.utilities.types import LRSchedulerConfig, OptimizerLRSche
 from hsdt import HSDT
 from metrics.psnr import compute_batch_mpsnr
 from metrics.ssim import compute_batch_mssim
+from metrics.charbonnier import charbonnier_loss
 
 
 class HSDTLightning(L.LightningModule):
@@ -69,7 +70,9 @@ class HSDTLightning(L.LightningModule):
         input, target = batch
         output = self.model(input)
 
-        loss = F.mse_loss(output, target)
+        # loss = F.mse_loss(output, target)
+        loss = charbonnier_loss(output, target, eps=1e-3)
+
         ssim = compute_batch_mssim(output, target)
         psnr = compute_batch_mpsnr(output, target)
 
