@@ -31,7 +31,8 @@ trainer:
   num_nodes: 1
   
   # Using 16-bit mixed precision
-  precision: "16-mixed"
+  # precision: "16-mixed"
+  precision: "bf16-mixed"
 
   callbacks:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
