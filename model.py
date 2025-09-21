@@ -111,7 +111,7 @@ class HSDTLightning(L.LightningModule):
         return self.model(x)
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        optimizer: OptimizerLRScheduler = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=1e-2, betas=(0.9, 0.98))
+        optimizer: OptimizerLRScheduler = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=3e-4, betas=(0.9, 0.98))
 
         # NOTE: this assumes dataloader size/limits is not changed mid-run.
         assert self.trainer.max_epochs is not None, "self.train.max_epochs is None!!!"
