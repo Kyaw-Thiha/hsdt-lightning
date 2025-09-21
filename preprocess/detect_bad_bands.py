@@ -8,11 +8,11 @@ def bad_band_mask(
     bbl: Optional[np.ndarray] = None,  # shape (C,), 1=good, 0=bad
     *,
     snr_frac: float = 0.4,  # Rule 2: band SNR must be at least this fraction of median SNR
-    floor_frac: float = 0.7,  # Rule 3: fraction of pixels at/below global 1st pct to flag
+    floor_frac: float = 0.8,  # Rule 3: fraction of pixels at/below global 1st pct to flag
     corr_abs: float = 0.5,  # Rule 4: min neighbor correlation
     d2_z: float = 3.5,  # Rule 5: z-score threshold on 2nd derivative trough
     deep_frac: float = 0.5,  # Rule 5: band median must also be < deep_frac * global median
-    votes_needed: int = 2,  # Voting threshold to label a band as bad
+    votes_needed: int = 3,  # Voting threshold to label a band as bad
     max_drop_frac: float = 0.30,  # Safety rail: max fraction of bands to drop
     sample_pixels: int = 200_000,  # Subsample for robust, fast statistics
     edge_k: int = 4,  # Rule 7: first/last k bands get “edge boost” if already suspicious
