@@ -4,6 +4,8 @@ import os
 import numpy as np
 import tifffile
 
+from preprocess.detect_bad_bands import bad_band_mask
+
 
 FILE_PATH = "../data"
 
@@ -20,6 +22,7 @@ def clean_mat(input_dir: str, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
 
     for fname in os.listdir(input_dir):
+        print(f"Processing {fname}")
         img_path = os.path.join(input_dir, fname)
         img = None
 
@@ -37,6 +40,9 @@ def clean_mat(input_dir: str, output_dir: str):
             continue
         img = change_shape(img)  # --> (H, W, C)
         print(f"Transposed shape (H, W, C): {img.shape}")
+
+        bad, metrics = bad_band_mask(img)
+        print(f"Bad bands: {np.where(bad)[0].tolist()}")
 
         output_fname = os.path.splitext(fname)[0] + ".mat"
 
