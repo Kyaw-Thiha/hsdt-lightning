@@ -1,9 +1,11 @@
+import math
 import os
 from typing import List, Optional, cast
 from scipy.io import savemat
 import torch
 from torch import Tensor
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import LambdaLR
 import torch.nn.functional as F
 import lightning as L
 from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
@@ -114,23 +116,49 @@ class HSDTLightning(L.LightningModule):
         # NOTE: this assumes dataloader size/limits is not changed mid-run.
         assert self.trainer.max_epochs is not None, "self.train.max_epochs is None!!!"
         steps_per_epoch = int(self.trainer.estimated_stepping_batches / self.trainer.max_epochs)
+        total_steps = self.trainer.max_epochs * steps_per_epoch
+        warmup_steps = int(0.1 * total_steps)
+
+        def lr_lambda(current_step: int):
+            """
+            Piecewise LR multiplier: linear warmup then cosine decay.
+            Args:
+                current_step (int): Number of optimizer steps taken so far (0-indexed).
+                                    Lightning advances this each `optimizer.step()`.
+            Returns:
+                float: Multiplicative factor applied to the base LR (optimizer param group 'lr').
+                       - During warmup (0..warmup_steps): linearly increases from 0 -> 1.
+                       - After warmup: cosine decay from 1 -> 0 over the remaining steps.
+            """
+            if current_step < warmup_steps:
+                return float(current_step) / float(max(1, warmup_steps))
+
+            floor = self.lr / 1000
+            progress = (current_step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+            cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return (floor / self.lr) + (1 - floor / self.lr) * cosine
 
         scheduler = cast(
             LRSchedulerConfig,
             {
-                "scheduler": torch.optim.lr_scheduler.OneCycleLR(
-                    optimizer,
-                    max_lr=self.lr,
-                    epochs=self.trainer.max_epochs,
-                    steps_per_epoch=steps_per_epoch,
-                    pct_start=0.35,  # 35% Warm Start
-                    anneal_strategy="cos",
-                    cycle_momentum=False,  # Make it true only for momentum based optimizers like SGD
-                    div_factor=25.0,  # start at lr/25
-                    final_div_factor=1_000.0,  # end at lr/1000
-                ),
-                "interval": "step",
+                "scheduler": LambdaLR(optimizer, lr_lambda),
+                "interval": "step",  # call every optimizer step
                 "frequency": 1,
             },
+            # {
+            #     "scheduler": torch.optim.lr_scheduler.OneCycleLR(
+            #         optimizer,
+            #         max_lr=self.lr,
+            #         epochs=self.trainer.max_epochs,
+            #         steps_per_epoch=steps_per_epoch,
+            #         pct_start=0.35,  # 35% Warm Start
+            #         anneal_strategy="cos",
+            #         cycle_momentum=False,  # Make it true only for momentum based optimizers like SGD
+            #         div_factor=25.0,  # start at lr/25
+            #         final_div_factor=1_000.0,  # end at lr/1000
+            #     ),
+            #     "interval": "step",
+            #     "frequency": 1,
+            # },
         )
         return [optimizer], [scheduler]
