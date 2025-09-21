@@ -161,7 +161,9 @@ def normalize_image(img: np.ndarray, lower: float = 0.0, upper: float = 100.0) -
     max_val = np.percentile(img, upper)
     if max_val - min_val == 0:
         return np.zeros_like(img)  # Avoid division by zero
-    return (img - min_val) / (max_val - min_val)
+    img = (img - min_val) / (max_val - min_val)
+    img = np.clip(img, 0, 1)  # We need to clip since the hsi datasets can contain small negative values
+    return img
 
 
 def normalize_to_uint8(img: np.ndarray) -> np.ndarray:
