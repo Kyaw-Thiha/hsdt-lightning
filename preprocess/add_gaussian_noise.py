@@ -39,12 +39,24 @@ def add_gaussian_noise(
             if key.startswith("__"):
                 continue
             if isinstance(value, np.ndarray) and key != "gt":
+                ## If sigma is 0, we will use snr_db and estimate sigma value
+                local_sigma = sigma
                 if sigma < 0:
-                    sigma = estimate_sigma_from_snr(value, snr_db)
-                print(f"Noise Level: {sigma}")
-                noise = np.random.normal(0, sigma, size=value.shape)
+                    local_sigma = estimate_sigma_from_snr(value, snr_db)
+                print(f"Noise Level: {local_sigma}")
 
-                value = value + noise
+                # Normalizing noise strength over each bands
+                H, W, C = value.shape
+                for band in range(C):
+                    img_at_band = value[:, :, band]
+                    low = np.percentile(img_at_band, 2.0)
+                    high = np.percentile(img_at_band, 98.0)
+                    scale = np.maximum(high - low, 1e-12)
+
+                    band_sigma = local_sigma * scale
+                    noise = np.random.normal(0, band_sigma, size=(H, W))
+                    value[:, :, band] = img_at_band + noise
+
                 clip_lower, clip_upper = clip
                 if clip_lower != -1 and clip_upper != -1:
                     noisy_data[key] = np.clip(value, clip_lower, clip_upper)
