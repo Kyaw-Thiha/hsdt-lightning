@@ -42,7 +42,9 @@ def clean_mat(input_dir: str, output_dir: str):
         print(f"Transposed shape (H, W, C): {img.shape}")
 
         bad, metrics = bad_band_mask(img)
+        img = img[:, :, ~bad]
         print(f"Bad bands: {np.where(bad)[0].tolist()}")
+        print(f"Band removed shape (H, W, C): {img.shape}")
 
         output_fname = os.path.splitext(fname)[0] + ".mat"
 
