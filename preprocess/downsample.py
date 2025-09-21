@@ -75,7 +75,7 @@ def load_downsample_save(
             print(f"[✓] Downsampled: {fname} ")
 
             if normalization == 1:
-                img = normalize_image(img)
+                img = normalize_image(img, lower=2, upper=98)
                 print(f"[✓] Normalized to [0, 1]: {fname} ")
             elif normalization == 255:
                 img = normalize_to_uint8(img)
@@ -152,13 +152,13 @@ def downsample(
     return lowres
 
 
-def normalize_image(img: np.ndarray) -> np.ndarray:
+def normalize_image(img: np.ndarray, lower: float = 0.0, upper: float = 100.0) -> np.ndarray:
     """
     Min-Max Normalization over the entire cube
     Normalize the image data to the range [0, 1].
     """
-    min_val = np.min(img)
-    max_val = np.max(img)
+    min_val = np.percentile(img, lower)
+    max_val = np.percentile(img, upper)
     if max_val - min_val == 0:
         return np.zeros_like(img)  # Avoid division by zero
     return (img - min_val) / (max_val - min_val)
