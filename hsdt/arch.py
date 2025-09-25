@@ -8,7 +8,13 @@ from typing import Any, Callable, List, Mapping, Optional, Tuple, Union, Dict
 from .attention import TransformerBlock
 from .sepconv import SepConv_DP, SepConv_DP_CA, S3Conv
 
-BatchNorm3d = nn.BatchNorm3d
+
+def GroupNorm(ch):
+    return nn.GroupNorm(num_groups=8, num_channels=ch)
+
+
+# BatchNorm3d = nn.BatchNorm3d
+BatchNorm3d = GroupNorm  # Since we are using small batches (around 8 - 16)
 Conv3d = S3Conv.of(nn.Conv3d)
 IsConvImpl: bool = False
 UseBN: bool = True
