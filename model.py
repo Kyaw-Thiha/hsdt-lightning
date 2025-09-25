@@ -49,16 +49,28 @@ class HSDTLightning(L.LightningModule):
 
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         input, target = batch
-        output = self.model(input)
-        loss = F.mse_loss(output, target)
+        output: Tensor = self.model(input)
+        # loss = F.mse_loss(output, target)
+
+        loss = charbonnier_loss(output, target, eps=1e-3)
+        ssim = compute_batch_mssim(output.clamp(0, 1), target)
+        ssim_l = 1.0 - ssim
+        alpha = 0.95
+        loss = alpha * loss + (1 - alpha) * ssim_l
+
         self.log("train_loss", loss, on_step=False, on_epoch=True)
         return loss
 
     def validation_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         input, target = batch
-        output = self.model(input)
+        output: Tensor = self.model(input)
 
-        loss = F.mse_loss(output, target)
+        loss = charbonnier_loss(output, target, eps=1e-3)
+        ssim_l = 1.0 - compute_batch_mssim(output.clamp(0, 1), target)
+        alpha = 0.95
+        loss = alpha * loss + (1 - alpha) * ssim_l
+
+        output = output.clamp(0, 1)  # Model outputs overshoot 1 a bit
         ssim = compute_batch_mssim(output, target)
         psnr = compute_batch_mpsnr(output, target)
 
@@ -75,6 +87,7 @@ class HSDTLightning(L.LightningModule):
         # loss = F.mse_loss(output, target)
         loss = charbonnier_loss(output, target, eps=1e-3)
 
+        output = output.clamp(0, 1)  # Model outputs overshoot 1 a bit
         ssim = compute_batch_mssim(output.clamp(0, 1), target)
         psnr = compute_batch_mpsnr(output.clamp(0, 1), target)
 
