@@ -86,7 +86,7 @@ class HSIDataModule(L.LightningDataModule):
             stage (Optional[str]): One of ["fit", "validate", "test", "predict"].
         """
         base_dir = "data"
-        patch_size = 64
+        patch_size = self.spatial_factor
 
         if stage == "fit" or stage is None:
             transform = HSITransform(crop_size=64)
