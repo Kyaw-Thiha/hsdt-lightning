@@ -126,10 +126,13 @@ class HSDTLightning(L.LightningModule):
     def configure_optimizers(self) -> OptimizerLRScheduler:
         optimizer: OptimizerLRScheduler = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=3e-4, betas=(0.9, 0.98))
 
-        # NOTE: this assumes dataloader size/limits is not changed mid-run.
-        assert self.trainer.max_epochs is not None, "self.train.max_epochs is None!!!"
-        steps_per_epoch = int(self.trainer.estimated_stepping_batches / self.trainer.max_epochs)
-        total_steps = self.trainer.max_epochs * steps_per_epoch
+        total_steps = 0
+        if self.trainer.max_steps == -1:
+            assert self.trainer.max_epochs is not None, "self.train.max_epochs is None!!!"
+            steps_per_epoch = int(self.trainer.estimated_stepping_batches / self.trainer.max_epochs)
+            total_steps = self.trainer.max_epochs * steps_per_epoch
+        else:
+            total_steps = self.trainer.max_steps
         warmup_steps = int(0.1 * total_steps)
 
         def lr_lambda(current_step: int):
