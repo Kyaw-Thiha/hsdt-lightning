@@ -46,7 +46,7 @@ class HSIDataset(Dataset):
         for mat_file in files:
             # If filenames are given, only select those files
             if len(filenames) > 0:
-                if mat_file not in filenames:
+                if os.path.basename(mat_file) not in filenames:
                     continue
 
             mat = loadmat(mat_file)
