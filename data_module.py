@@ -36,6 +36,8 @@ class HSIDataModule(L.LightningDataModule):
         out_bands: int = 81,
         preprocess_data: bool = False,
         gaussian_noises: List[int] = [30, 50, 70],
+        train_files: List[str] = [],
+        test_files: List[str] = [],
         patch_test: bool = True,
         batch_size: int = 32,
         num_workers: int = 0,
@@ -53,6 +55,10 @@ class HSIDataModule(L.LightningDataModule):
         cpu_count = os.cpu_count()
         if num_workers == 0 and cpu_count is not None:
             self.num_workers = cpu_count // 2
+
+        # Choosing files to train & test
+        self.train_files = train_files
+        self.test_files = test_files
 
         # Internal dataset handles
         self.dataset_train: Optional[Dataset] = None
@@ -84,9 +90,10 @@ class HSIDataModule(L.LightningDataModule):
 
         if stage == "fit" or stage is None:
             transform = HSITransform(crop_size=64)
-            train_dataset = HSIDataset(base_dir, patch_size=patch_size, stride_size=patch_size // 4, transform=transform)
+            # train_dataset = HSIDataset(base_dir, patch_size=patch_size, stride_size=patch_size // 4, transform=transform)
+            train_dataset = HSIDataset(base_dir, patch_size=patch_size, stride_size=patch_size // 4)
             for gaussian_noise in self.gaussian_noises:
-                train_dataset.add_files(f"gaussian_{gaussian_noise}")
+                train_dataset.add_files(f"gaussian_{gaussian_noise}", self.train_files)
 
             total = len(train_dataset)
             train_size = int(0.9 * total)
@@ -100,7 +107,7 @@ class HSIDataModule(L.LightningDataModule):
                 test_patch_size = patch_size
             test_dataset = HSIDataset(base_dir, patch_size=test_patch_size, stride_size=test_patch_size)
             for gaussian_noise in self.gaussian_noises:
-                test_dataset.add_files(f"test_gaussian_{gaussian_noise}")
+                test_dataset.add_files(f"test_gaussian_{gaussian_noise}", self.test_files)
 
             self.dataset_test = test_dataset
 

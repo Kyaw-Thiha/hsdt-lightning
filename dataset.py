@@ -34,13 +34,21 @@ class HSIDataset(Dataset):
         self.stride_size = stride_size
         self.patches: List[Tuple[torch.Tensor, torch.Tensor]] = []
 
-    def add_files(self, folder_name: str):
+    def add_files(self, folder_name: str, filenames: List[str] = []):
         data_dir = os.path.join(self.base_dir, folder_name)
         mat_files = [f for f in os.listdir(data_dir) if f.endswith(".mat")]
         mat_files.sort()
         files = [os.path.join(data_dir, f) for f in mat_files]
 
+        for filename in filenames:
+            assert filename.endswith(".mat"), "Ensure that all your filenames end with .mat"
+
         for mat_file in files:
+            # If filenames are given, only select those files
+            if len(filenames) > 0:
+                if mat_file not in filenames:
+                    continue
+
             mat = loadmat(mat_file)
 
             noisy = mat["input"]  # Noisy image

@@ -20,6 +20,10 @@ data:
   - 30
   # - 50
   # - 70
+  train_files: 
+    - Pavia.mat
+  test_files:
+    - Pavia.mat
   patch_test: true
   batch_size: 32    # TODO: Replace this with the value you get from batch size finder
   num_workers: 0
