@@ -87,8 +87,7 @@ class HSIDataset(Dataset):
         clean_tensor = clean_tensor.unsqueeze(0)
 
         if self.transform:
-            noisy_tensor = self.transform(noisy_tensor)
-            clean_tensor = self.transform(clean_tensor)
+            noisy_tensor, clean_tensor = self.transform(noisy_tensor, clean_tensor)
 
         return noisy_tensor, clean_tensor
 

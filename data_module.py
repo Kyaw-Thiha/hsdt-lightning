@@ -1,6 +1,6 @@
 import os
 import random
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import lightning as L
 import torch
@@ -89,9 +89,8 @@ class HSIDataModule(L.LightningDataModule):
         patch_size = self.spatial_factor
 
         if stage == "fit" or stage is None:
-            transform = HSITransform(crop_size=64)
-            # train_dataset = HSIDataset(base_dir, patch_size=patch_size, stride_size=patch_size // 4, transform=transform)
-            train_dataset = HSIDataset(base_dir, patch_size=patch_size, stride_size=patch_size // 4)
+            transform = HSITransform()
+            train_dataset = HSIDataset(base_dir, patch_size=patch_size, stride_size=patch_size // 4, transform=transform)
             for gaussian_noise in self.gaussian_noises:
                 train_dataset.add_files(f"gaussian_{gaussian_noise}", self.train_files)
 
@@ -133,35 +132,70 @@ class HSITransform:
     - Random horizontal flip
     - Random vertical flip
     - Random 90° rotation
-    - Random crop to a fixed size
 
     Args:
-        crop_size (int): Desired crop size (crop_size x crop_size).
+        h_flip (float): Desired probability of horizontal flip [0-1].
+        v_flip (float): Desired probability of vertical flip [0-1].
+        rotation_90 (float): Desired probability of rotation [0-1].
     """
 
-    def __init__(self, crop_size: int):
-        self.crop_size = crop_size
+    def __init__(
+        self,
+        h_flip: float = 0.5,
+        v_flip: float = 0.5,
+        rotation_90: float = 0.5,
+        jitter_gain: float = 0.5,
+        jitter_bias: float = 0.3,
+    ):
+        assert 0.0 <= h_flip <= 1.0, f"h_flip must be [0-1]. Received: {h_flip}"
+        assert 0.0 <= v_flip <= 1.0, f"v_flip must be [0-1]. Received: {v_flip}"
+        assert 0.0 <= rotation_90 <= 1.0, f"rotation_90 must be [0-1]. Received: {rotation_90}"
+        assert 0.0 <= jitter_gain <= 1.0, f"jitter_gain must be [0-1]. Received: {jitter_gain}"
+        assert 0.0 <= jitter_bias <= 1.0, f"jitter_bias must be [0-1]. Received: {jitter_bias}"
 
-    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
-        assert tensor.ndim == 4, "Expected tensor of shape (1, D, H, W)"
-        _, D, H, W = tensor.shape
-        assert H >= self.crop_size and W >= self.crop_size, "Image too small for cropping."
+        self.h_flip = h_flip
+        self.v_flip = v_flip
+        self.rotation_90 = rotation_90
+        self.jitter_gain = jitter_gain
+        self.jitter_bias = jitter_bias
+
+    def __call__(self, noisy: torch.Tensor, clean: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        assert noisy.ndim == 4, "Expected noisy tensor of shape (1, D, H, W)"
+        assert clean.ndim == 4, "Expected clean tensor of shape (1, D, H, W)"
+        _, D, H, W = noisy.shape
+
+        rng = torch.rand(5, device=noisy.device if noisy.is_cuda else None)
+        rng_h_flip, rng_v_flip, rng_rotation_90, rng_jitter_gain, rng_jitter_bias = rng
 
         # Random horizontal flip
-        if random.random() > 0.5:
-            tensor = torch.flip(tensor, dims=[3])  # Flip width (W axis)
+        if rng_h_flip < self.h_flip:
+            noisy = torch.flip(noisy, dims=[3])  # Flip width (W axis)
+            clean = torch.flip(clean, dims=[3])  # Flip width (W axis)
 
         # Random vertical flip
-        if random.random() > 0.5:
-            tensor = torch.flip(tensor, dims=[2])  # Flip height (H axis)
+        if rng_v_flip < self.v_flip:
+            noisy = torch.flip(noisy, dims=[2])  # Flip height (H axis)
+            clean = torch.flip(clean, dims=[2])  # Flip height (H axis)
 
-        # Random 90° rotation (0, 90, 180, 270 degrees)
-        k = random.choice([0, 1, 2, 3])
-        tensor = torch.rot90(tensor, k=k, dims=[2, 3])  # rotate in H-W plane
+        # Random 90° rotation (90, 180, 270 degrees)
+        if rng_rotation_90 < self.rotation_90:
+            k = int(torch.randint(1, 4, ()).item())  # [1, 2, 3]
+            noisy = torch.rot90(noisy, k=k, dims=[2, 3])  # rotate in H-W plane
+            clean = torch.rot90(clean, k=k, dims=[2, 3])  # rotate in H-W plane
+
+        # Photometric Jitter
+        if rng_jitter_gain < self.jitter_gain:
+            g = torch.empty(1).uniform_(0.95, 1.05)
+            noisy = (noisy * g).clamp_(0, 1)
+            clean = (clean * g).clamp_(0, 1)
+        if rng_jitter_bias < self.jitter_bias:
+            b = torch.empty(1).uniform_(-0.02, 0.02)
+            noisy = (noisy + b).clamp_(0, 1)
+            clean = (clean + b).clamp_(0, 1)
 
         # Random crop
         # top = random.randint(0, H - self.crop_size)
         # left = random.randint(0, W - self.crop_size)
         # tensor = tensor[:, :, top : top + self.crop_size, left : left + self.crop_size]
 
-        return tensor
+        return noisy.contiguous(), clean.contiguous()
