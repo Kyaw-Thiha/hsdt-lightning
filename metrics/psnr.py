@@ -67,10 +67,11 @@ def MPSNR(img1: np.ndarray, img2: np.ndarray) -> float:
     AssertionError
         If input images do not have the same shape.
     """
+    PSNR_CAP = 80  # Large finite cap for infinite values
     assert img1.shape == img2.shape, "Input images must have the same shape"
 
-    img1 = img1.astype(np.float32)
-    img2 = img2.astype(np.float32)
+    img1 = img1.astype(np.float64)
+    img2 = img2.astype(np.float64)
 
     if img1.ndim == 2 or (img1.ndim == 3 and img1.shape[2] == 1):
         return psnr(img1.squeeze(), img2.squeeze(), data_range=1.0)
@@ -78,6 +79,15 @@ def MPSNR(img1: np.ndarray, img2: np.ndarray) -> float:
     ch = img1.shape[2]
     psnr_total = 0.0
     for i in range(ch):
+        # If two images are equal at the spectral band, return the max PSNR value
+        if np.array_equal(img1[:, :, i], img2[:, :, i]):
+            score = PSNR_CAP
+            psnr_total += score
+            continue
+
+        # Calculate the PSNR, and cap the infinite result
         score = psnr(img1[:, :, i], img2[:, :, i], data_range=1.0)
+        if not np.isfinite(score):
+            score = PSNR_CAP
         psnr_total += score
     return psnr_total / ch
