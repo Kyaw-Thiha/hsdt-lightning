@@ -1,8 +1,6 @@
 # ⚡ HSDT-Lightning
 PyTorch Lightning ⚡ implementation of the [HSDT](https://arxiv.org/pdf/2303.09040) model for removing dark noise from hyperspectral images (HSI) — developed for the FINCH satellite by the University of Toronto Aerospace Team.
 
-![Denoised from Gaussian-30 Noise](./public/gaussian_30.png)
-
 ## 🚀 Features
 - ⚡ Built with **PyTorch Lightning** for clean, scalable research
 - 🔁 **Multi-GPU training** via Distributed Data Parallel (DDP)
@@ -10,6 +8,8 @@ PyTorch Lightning ⚡ implementation of the [HSDT](https://arxiv.org/pdf/2303.09
 - 📄 **Well-documented**, modular, and strongly-typed codebase
 
 Note that my companion notes can be found in [notion](https://utat-ss.notion.site/HSDT-Denoiser-aa306c141f8c4bbd8100d43efe740df1)
+
+![Denoised from Gaussian-30 Noise](./public/gaussian_30.png)
 
 ## 📦 Installing Dependencies
 Create a virtual environment, and run
