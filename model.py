@@ -11,7 +11,7 @@ import lightning as L
 from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
 from lightning.pytorch.utilities.types import LRSchedulerConfig, OptimizerLRScheduler
 
-from hsdt import HSDT
+from models import HSDT
 from metrics.psnr import compute_batch_mpsnr
 from metrics.ssim import compute_batch_mssim
 from metrics.charbonnier import charbonnier_loss
