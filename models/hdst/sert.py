@@ -1,5 +1,7 @@
 from tkinter import W
 from turtle import forward
+from collections.abc import Sequence
+from typing import List, Union, cast
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -262,7 +264,7 @@ class WindowAttention(nn.Module):
         dim,
         window_size,
         num_heads,
-        qkv_bias=0,
+        qkv_bias: bool = True,
         qk_scale=None,
         memory_blocks=128,
         down_rank=16,
@@ -335,7 +337,10 @@ class WindowAttention(nn.Module):
         flops = 0
         H, W = shape
         # qkv = self.qkv(x)
-        flops += 2 * self.attns[0].flops([H, W])
+        attn_first = cast(LePEAttention, self.attns[0])
+        attn_second = cast(LePEAttention, self.attns[1])
+        flops += attn_first.flops((H, W))
+        flops += attn_second.flops((H, W))
         flops += self.c_attns.flops([H, W])
         return flops
 
@@ -599,6 +604,7 @@ class FrequencyDomainProcess(nn.Module):
         real, imag = torch.chunk(fft_processed, 2, dim=1)
         freq_feat = torch.fft.irfft2(torch.complex(real, imag), s=x.shape[-2:])
         # 动态融合
+        gate = torch.ones_like(x[:, :1])
         if self.aspp_enable == 0:
             gate = self.gate(torch.cat([x, freq_feat], dim=1))
         elif self.aspp_enable == 1:
@@ -645,12 +651,19 @@ class SMS_AfterEffect(nn.Module):
         weight_factor=0.1,
         memory_blocks=128,
         down_rank=16,
-        drop_path=0.0,
+        drop_path: Union[Sequence[float], float] = 0.0,
         split_size=1,
         num_heads_WCA=4,
         window_size_WCA=32,
     ):
         super().__init__()
+        if isinstance(drop_path, float):
+            drop_path_seq: List[float] = [drop_path] * depth
+        else:
+            drop_path = cast(Sequence[float], drop_path)
+            drop_path_seq = list(drop_path)
+        if len(drop_path_seq) < depth:
+            raise ValueError("drop_path length must be at least the block depth.")
         self.beta = nn.Parameter(torch.tensor(0.1))  # 新增可学习参数，初始化为0
         # 空间域Transformer
         self.spatial_block = nn.Sequential(
@@ -666,7 +679,7 @@ class SMS_AfterEffect(nn.Module):
                     down_rank=down_rank,
                     split_size=split_size,
                     mlp_ratio=mlp_ratio,
-                    drop_path=drop_path[i],
+                    drop_path=drop_path_seq[i],
                     qkv_bias=qkv_bias,
                     qk_scale=qk_scale,
                 )
@@ -709,7 +722,7 @@ class SMSBlock(nn.Module):
         weight_factor=0.1,
         memory_blocks=128,
         down_rank=16,
-        drop_path=0.0,
+        drop_path: Union[Sequence[float], float] = 0.0,
         split_size=1,
     ):
         super(SMSBlock, self).__init__()
@@ -724,6 +737,13 @@ class SMSBlock(nn.Module):
         self.window_sizes_WCA = [32, 32, 16]  # 浅层用大窗口，深层用小窗口
 
         # self.pre_aspp = MultiStageASPP(dim,dim,stage_level)
+        if isinstance(drop_path, float):
+            drop_path_seq: List[float] = [drop_path] * depth
+        else:
+            drop_path = cast(Sequence[float], drop_path)
+            drop_path_seq = list(drop_path)
+        if len(drop_path_seq) < depth:
+            raise ValueError("drop_path length must be at least the block depth.")
         self.smsblock = nn.Sequential(
             *[
                 SSMTDA(
@@ -737,7 +757,7 @@ class SMSBlock(nn.Module):
                     down_rank=down_rank,
                     split_size=split_size,
                     mlp_ratio=mlp_ratio,
-                    drop_path=drop_path[i],
+                    drop_path=drop_path_seq[i],
                     qkv_bias=qkv_bias,
                     qk_scale=qk_scale,
                 )
@@ -755,7 +775,7 @@ class SMSBlock(nn.Module):
             weight_factor=weight_factor,
             memory_blocks=memory_blocks,
             down_rank=down_rank,
-            drop_path=drop_path,
+            drop_path=drop_path_seq,
             split_size=split_size,
             window_size_WCA=self.window_sizes_WCA[i_layer],
         )
@@ -771,7 +791,8 @@ class SMSBlock(nn.Module):
     def flops(self, shape):
         flops = 0
         for blk in self.smsblock:
-            flops += blk.flops(shape)
+            sm_block = cast(SSMTDA, blk)
+            flops += sm_block.flops(shape)
         return flops
 
 
@@ -841,5 +862,6 @@ class SERT(nn.Module):
     def flops(self, shape):
         flops = 0
         for i, layer in enumerate(self.layers):
-            flops += layer.flops(shape)
+            sms_layer = cast(SMSBlock, layer)
+            flops += sms_layer.flops(shape)
         return flops
