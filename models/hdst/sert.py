@@ -1,12 +1,8 @@
-from tkinter import W
-from turtle import forward
 from collections.abc import Sequence
 from typing import List, Union, cast
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pdb import set_trace as stx
-import numbers
 from einops import rearrange
 import numpy as np
 from timm.layers.drop import DropPath
@@ -15,13 +11,14 @@ from timm.layers.weight_init import trunc_normal_
 
 
 def window_partition(x, window_size):
-    """
+    """Split an image tensor into non-overlapping windows.
+
     Args:
-        x: (B, H, W, C)
-        window_size (int): window size
+        x (torch.Tensor): Input tensor of shape `(B, H, W, C)`.
+        window_size (int): Spatial size of each square window.
 
     Returns:
-        windows: (num_windows*B, window_size, window_size, C)
+        torch.Tensor: Tensor of shape `(num_windows * B, window_size, window_size, C)` containing windowed patches.
     """
     B, H, W, C = x.shape
     x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
@@ -30,15 +27,16 @@ def window_partition(x, window_size):
 
 
 def window_reverse(windows, window_size, H, W):
-    """
+    """Reconstruct the full image tensor from windowed patches.
+
     Args:
-        windows: (num_windows*B, window_size, window_size, C)
-        window_size (int): Window size
-        H (int): Height of image
-        W (int): Width of image
+        windows (torch.Tensor): Tensor of shape `(num_windows * B, window_size, window_size, C)`.
+        window_size (int): Spatial size of each square window.
+        H (int): Original image height.
+        W (int): Original image width.
 
     Returns:
-        x: (B, H, W, C)
+        torch.Tensor: Tensor of shape `(B, H, W, C)` representing the restored image.
     """
     B = int(windows.shape[0] / (H * W / window_size / window_size))
     x = windows.view(B, H // window_size, W // window_size, window_size, window_size, -1)
@@ -47,7 +45,18 @@ def window_reverse(windows, window_size, H, W):
 
 
 class Mlp(nn.Module):
+    """Two-layer feed-forward network with GELU activation and dropout."""
+
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.0):
+        """Initialize the MLP module.
+
+        Args:
+            in_features (int): Size of the input feature dimension.
+            hidden_features (int | None): Size of the hidden layer; defaults to `in_features`.
+            out_features (int | None): Output feature dimension; defaults to `in_features`.
+            act_layer (Callable[[], nn.Module]): Activation constructor, defaults to `nn.GELU`.
+            drop (float): Dropout probability applied after each linear layer.
+        """
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -57,6 +66,14 @@ class Mlp(nn.Module):
         self.drop = nn.Dropout(drop)
 
     def forward(self, x):
+        """Run the MLP over the input tensor.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(B, N, C)` or `(B, C)`.
+
+        Returns:
+            torch.Tensor: Tensor matching the input leading dimensions with the output feature dimension.
+        """
         x = self.fc1(x)
         x = self.act(x)
         x = self.drop(x)
@@ -66,8 +83,15 @@ class Mlp(nn.Module):
 
 
 def img2windows(img, H_sp, W_sp):
-    """
-    img: B C H W
+    """Convert an image tensor into smaller spatial windows.
+
+    Args:
+        img (torch.Tensor): Input tensor of shape `(B, C, H, W)`.
+        H_sp (int): Window height in pixels.
+        W_sp (int): Window width in pixels.
+
+    Returns:
+        torch.Tensor: Tensor of shape `(B * (H / H_sp) * (W / W_sp), H_sp * W_sp, C)`.
     """
     B, C, H, W = img.shape
     img_reshape = img.view(B, C, H // H_sp, H_sp, W // W_sp, W_sp)
@@ -76,8 +100,17 @@ def img2windows(img, H_sp, W_sp):
 
 
 def windows2img(img_splits_hw, H_sp, W_sp, H, W):
-    """
-    img_splits_hw: B' H W C
+    """Merge windowed tensors back into the original image layout.
+
+    Args:
+        img_splits_hw (torch.Tensor): Tensor of shape `(B', H_sp * W_sp, C)` or reshape-compatible view.
+        H_sp (int): Window height used during partition.
+        W_sp (int): Window width used during partition.
+        H (int): Original image height.
+        W (int): Original image width.
+
+    Returns:
+        torch.Tensor: Tensor of shape `(B, H, W, C)` representing the reconstructed image.
     """
     B = int(img_splits_hw.shape[0] / (H * W / H_sp / W_sp))
 
@@ -87,7 +120,21 @@ def windows2img(img_splits_hw, H_sp, W_sp, H, W):
 
 
 class LePEAttention(nn.Module):
+    """Localized positional encoding attention operating on partitioned windows."""
+
     def __init__(self, dim, resolution, idx, split_size=7, dim_out=None, num_heads=8, attn_drop=0.0, qk_scale=None):
+        """Set up the localized positional encoding attention branch.
+
+        Args:
+            dim (int): Input embedding dimension.
+            resolution (int): Window resolution (assumes square spatial layout).
+            idx (int): Axis selector (0 for horizontal, 1 for vertical splits).
+            split_size (int): Size of the non-overlapping window splits.
+            dim_out (int | None): Output embedding dimension; defaults to `dim`.
+            num_heads (int): Number of attention heads.
+            attn_drop (float): Dropout probability applied to attention weights.
+            qk_scale (float | None): Optional scaling factor applied to queries.
+        """
         super().__init__()
         self.dim = dim
         self.dim_out = dim_out or dim
@@ -111,6 +158,14 @@ class LePEAttention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
 
     def im2cswin(self, x):
+        """Reshape tokens into CSWin-style windows.
+
+        Args:
+            x (torch.Tensor): Tensor of shape `(B, N, C)` representing flattened image tokens.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B * num_windows, num_heads, window_area, C / num_heads)`.
+        """
         B, N, C = x.shape
         H = W = int(np.sqrt(N))
         x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
@@ -119,6 +174,15 @@ class LePEAttention(nn.Module):
         return x
 
     def get_lepe(self, x, func):
+        """Compute localized positional encoding for value features.
+
+        Args:
+            x (torch.Tensor): Tensor of shape `(B, N, C)` with flattened spatial tokens.
+            func (Callable[[torch.Tensor], torch.Tensor]): Depth-wise convolution applied to compute positional bias.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor]: Tuple containing the reshaped value tensor and corresponding positional encoding.
+        """
         B, N, C = x.shape
         H = W = int(np.sqrt(N))
         x = x.transpose(-2, -1).contiguous().view(B, C, H, W)
@@ -134,8 +198,14 @@ class LePEAttention(nn.Module):
         return x, lepe
 
     def forward(self, qkv, mask=None):
-        """
-        x: B L C
+        """Apply localized positional encoding attention.
+
+        Args:
+            qkv (torch.Tensor): Tensor of shape `(3, B, L, C)` containing query, key, and value projections.
+            mask (torch.Tensor | None): Optional attention mask; not used in this implementation.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, L, C)` containing the attended features.
         """
         q, k, v = qkv[0], qkv[1], qkv[2]
 
@@ -165,6 +235,14 @@ class LePEAttention(nn.Module):
         return x
 
     def flops(self, shape):
+        """Estimate the floating-point operations for a forward pass.
+
+        Args:
+            shape (tuple[int, int]): Spatial shape `(H, W)` of the feature map.
+
+        Returns:
+            int: Estimated FLOPs for the attention branch.
+        """
         flops = 0
         H, W = shape
         # q, k, v = (B* H//H_sp * W//W_sp) heads H_sp*W_sp C//heads
@@ -187,13 +265,16 @@ class LePEAttention(nn.Module):
 
 
 class ChannelAttention(nn.Module):
-    """Channel attention used in RCAN.
-    Args:
-        num_feat (int): Channel number of intermediate features.
-        squeeze_factor (int): Channel squeeze factor. Default: 16.
-    """
+    """Dictionary-guided channel attention with low-rank projections."""
 
     def __init__(self, num_feat, squeeze_factor=16, memory_blocks=128):
+        """Set up the channel attention module.
+
+        Args:
+            num_feat (int): Number of feature channels in the input.
+            squeeze_factor (int): Reduction factor for the bottleneck dimension.
+            memory_blocks (int): Number of learned dictionary atoms.
+        """
         super(ChannelAttention, self).__init__()
         self.pool = nn.AdaptiveAvgPool1d(1)
         self.subnet = nn.Sequential(
@@ -209,6 +290,14 @@ class ChannelAttention(nn.Module):
         self.low_dim = num_feat // squeeze_factor
 
     def forward(self, x):
+        """Apply channel attention weights.
+
+        Args:
+            x (torch.Tensor): Tensor of shape `(B, N, C)` representing window features.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, N, C)` with reweighted channels.
+        """
         b, n, c = x.shape
         t = x.transpose(1, 2)
         y = self.pool(t).squeeze(-1)
@@ -225,7 +314,17 @@ class ChannelAttention(nn.Module):
 
 
 class CAB(nn.Module):
+    """Channel attention block combining compression and dictionary guidance."""
+
     def __init__(self, num_feat, compress_ratio=3, squeeze_factor=30, memory_blocks=128):
+        """Initialize the CAB module.
+
+        Args:
+            num_feat (int): Number of feature channels.
+            compress_ratio (int): Reduction factor for the first linear layer.
+            squeeze_factor (int): Reduction factor inside the channel attention.
+            memory_blocks (int): Number of memory blocks for the channel attention dictionary.
+        """
         super(CAB, self).__init__()
         self.num_feat = num_feat
         self.cab = nn.Sequential(
@@ -236,9 +335,25 @@ class CAB(nn.Module):
         )
 
     def forward(self, x):
+        """Apply the CAB transformation.
+
+        Args:
+            x (torch.Tensor): Tensor of shape `(B, N, C)`.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, N, C)` after attention reweighting.
+        """
         return self.cab(x)
 
     def flops(self, shape):
+        """Estimate FLOPs for the CAB module.
+
+        Args:
+            shape (tuple[int, int]): Spatial shape `(H, W)` of the feature grid.
+
+        Returns:
+            int: Estimated number of floating-point operations.
+        """
         flops = 0
         H, W = shape
         flops += self.num_feat * H * W
@@ -246,18 +361,7 @@ class CAB(nn.Module):
 
 
 class WindowAttention(nn.Module):
-    r"""Window based multi-head self attention (W-MSA) module with relative position bias.
-    It supports both of shifted and non-shifted window.
-
-    Args:
-        dim (int): Number of input channels.
-        window_size (tuple[int]): The height and width of the window.
-        num_heads (int): Number of attention heads.
-        qkv_bias (bool, optional):  If True, add a learnable bias to query, key, value. Default: True
-        qk_scale (float | None, optional): Override default qk scale of head_dim ** -0.5 if set
-        attn_drop (float, optional): Dropout ratio of attention weight. Default: 0.0
-        proj_drop (float, optional): Dropout ratio of output. Default: 0.0
-    """
+    """Window-based multi-head self-attention with channel attention fusion."""
 
     def __init__(
         self,
@@ -273,6 +377,21 @@ class WindowAttention(nn.Module):
         proj_drop=0.0,
         split_size=1,
     ):
+        """Construct the window attention module.
+
+        Args:
+            dim (int): Token embedding dimension.
+            window_size (tuple[int, int]): Spatial size `(Wh, Ww)` of each window.
+            num_heads (int): Number of attention heads.
+            qkv_bias (bool): Whether to include learnable bias terms in QKV projections.
+            qk_scale (float | None): Optional scaling factor for queries.
+            memory_blocks (int): Number of dictionary atoms in the channel attention branch.
+            down_rank (int): Reduction factor used in channel attention.
+            weight_factor (float): Scaling factor for channel attention fusion.
+            attn_drop (float): Dropout applied to attention probabilities.
+            proj_drop (float): Dropout applied after the output projection.
+            split_size (int): Number of spatial splits along each axis.
+        """
         super().__init__()
         self.dim = dim
         self.window_size = window_size  # Wh, Ww
@@ -307,10 +426,14 @@ class WindowAttention(nn.Module):
         # self.c_attns = Subspace(dim)
 
     def forward(self, x, mask=None):
-        """
+        """Apply window attention and channel attention.
+
         Args:
-            x: input features with shape of (num_windows*B, N, C)
-            mask: (0/-inf) mask with shape of (num_windows, Wh*Ww, Wh*Ww) or None
+            x (torch.Tensor): Input tensor of shape `(num_windows * B, N, C)`.
+            mask (torch.Tensor | None): Optional attention mask of shape `(num_windows, Wh*Ww, Wh*Ww)`.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(num_windows * B, N, C)` after attention.
         """
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, -1, 3, C).permute(2, 0, 1, 3)
@@ -330,9 +453,18 @@ class WindowAttention(nn.Module):
         return x
 
     def extra_repr(self) -> str:
+        """Return a concise representation string for logging."""
         return f"dim={self.dim}, window_size={self.window_size}, num_heads={self.num_heads}"
 
     def flops(self, shape):
+        """Estimate FLOPs of the window attention.
+
+        Args:
+            shape (tuple[int, int]): Spatial shape `(H, W)` of the input features.
+
+        Returns:
+            int: Estimated floating-point operations.
+        """
         # calculate flops for 1 window with token length of N
         flops = 0
         H, W = shape
@@ -346,7 +478,16 @@ class WindowAttention(nn.Module):
 
 
 class ASPP(nn.Module):
+    """Atrous spatial pyramid pooling with depthwise convolutions."""
+
     def __init__(self, in_channels, out_channels, dilation_rates=[2, 4, 6]):
+        """Initialize the ASPP module.
+
+        Args:
+            in_channels (int): Number of input channels.
+            out_channels (int): Number of output channels produced by each branch.
+            dilation_rates (list[int]): Dilation factors for the atrous branches.
+        """
         super().__init__()
         # 维度对齐卷积
         self.pre_conv = nn.Sequential(nn.Conv2d(in_channels, out_channels, 1, bias=False), nn.GELU())
@@ -374,6 +515,14 @@ class ASPP(nn.Module):
         )
 
     def forward(self, x):
+        """Forward pass through ASPP.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(B, C_in, H, W)`.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, out_channels, H, W)` after multi-scale fusion.
+        """
         # 输入维度对齐
         x = self.pre_conv(x)
         B, C, H, W = x.shape
@@ -391,7 +540,17 @@ class ASPP(nn.Module):
 
 
 class ASPP_Enhanced(nn.Module):
+    """ASPP variant with optional global context for richer multi-scale features."""
+
     def __init__(self, in_channels, out_channels, dilation_rates=[2, 4, 6], use_global_branch=1):
+        """Enhanced ASPP with optional global context branch.
+
+        Args:
+            in_channels (int): Number of input channels.
+            out_channels (int): Number of output channels per branch.
+            dilation_rates (list[int]): Dilation rates for atrous convolutions.
+            use_global_branch (int): Flag controlling inclusion of the global pooling branch.
+        """
         super().__init__()
         self.use_global_branch = use_global_branch
 
@@ -430,6 +589,14 @@ class ASPP_Enhanced(nn.Module):
         )
 
     def forward(self, x):
+        """Forward pass through the enhanced ASPP block.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(B, C_in, H, W)`.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, out_channels, H, W)` after multi-branch fusion.
+        """
         # 输入维度对齐
         x = self.pre_conv(x)
         B, C, H, W = x.shape
@@ -451,23 +618,7 @@ class ASPP_Enhanced(nn.Module):
 
 
 class SSMTDA(nn.Module):
-    r"""Transformer Block.
-
-    Args:
-        dim (int): Number of input channels.
-        input_resolution (tuple[int]): Input resulotion.
-        num_heads (int): Number of attention heads.
-        window_size (int): Window size.
-        shift_size (int): Shift size for SW-MSA.
-        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
-        qkv_bias (bool, optional): If True, add a learnable bias to query, key, value. Default: True
-        qk_scale (float | None, optional): Override default qk scale of head_dim ** -0.5 if set.
-        drop (float, optional): Dropout rate. Default: 0.0
-        attn_drop (float, optional): Attention dropout rate. Default: 0.0
-        drop_path (float, optional): Stochastic depth rate. Default: 0.0
-        act_layer (nn.Module, optional): Activation layer. Default: nn.GELU
-        norm_layer (nn.Module, optional): Normalization layer.  Default: nn.LayerNorm
-    """
+    """Spatial-spectral multi-head transformer dual attention block."""
 
     def __init__(
         self,
@@ -489,6 +640,27 @@ class SSMTDA(nn.Module):
         act_layer=nn.GELU,
         ae_enable=0,
     ):
+        """Initialize the SSMTDA block.
+
+        Args:
+            dim (int): Channel dimension of the input tensor.
+            input_resolution (tuple[int, int]): Spatial resolution `(H, W)` of the feature map.
+            num_heads (int): Number of attention heads.
+            window_size (int): Window size used for window attention.
+            shift_size (int): Shift amount for shifted window attention.
+            split_size (int): Number of spatial splits in window attention.
+            drop_path (float): Stochastic depth rate.
+            weight_factor (float): Scaling factor when mixing channel attention response.
+            memory_blocks (int): Number of channel-attention dictionary atoms.
+            down_rank (int): Reduction factor for the channel attention.
+            mlp_ratio (float): Ratio between MLP hidden dimension and `dim`.
+            qkv_bias (bool): Whether to include bias in QKV projections.
+            qk_scale (float | None): Optional scaling factor for Q.
+            drop (float): Dropout probability applied in MLP.
+            attn_drop (float): Dropout applied to attention probabilities.
+            act_layer (Callable[[], nn.Module]): Activation constructor for the MLP.
+            ae_enable (int): Flag controlling the after-effect branch activation.
+        """
         super(SSMTDA, self).__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -525,6 +697,14 @@ class SSMTDA(nn.Module):
             self.aspp = ASPP_Enhanced(dim, dim, [2, 4, 6])
 
     def forward(self, x):
+        """Forward pass through the SSMTDA block.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(B, C, H, W)`.
+
+        Returns:
+            torch.Tensor: Output tensor of shape `(B, C, H, W)` after attention and optional ASPP.
+        """
         B, C, H, W = x.shape
         x = x.flatten(2).transpose(1, 2)
         shortcut = x
@@ -563,12 +743,21 @@ class SSMTDA(nn.Module):
         return x
 
     def extra_repr(self) -> str:
+        """Return a string summarizing key hyper-parameters."""
         return (
             f"dim={self.dim}, input_resolution={self.input_resolution}, num_heads={self.num_heads}, "
             f"window_size={self.window_size}, shift_size={self.shift_size}, mlp_ratio={self.mlp_ratio}"
         )
 
     def flops(self, shape):
+        """Estimate FLOPs for this block.
+
+        Args:
+            shape (tuple[int, int]): Spatial shape `(H, W)` of the feature map.
+
+        Returns:
+            int: Estimated floating-point operations.
+        """
         flops = 0
         H, W = shape
         nW = H * W / self.window_size / self.window_size
@@ -577,7 +766,15 @@ class SSMTDA(nn.Module):
 
 
 class FrequencyDomainProcess(nn.Module):
+    """Frequency-domain enhancement with learnable filtering and adaptive gating."""
+
     def __init__(self, dim, aspp_enable=1):
+        """Initialize the frequency-domain processing block.
+
+        Args:
+            dim (int): Number of channels per frequency representation (real or imaginary).
+            aspp_enable (int): Flag controlling ASPP-based gating path.
+        """
         super().__init__()
         self.aspp_enable = aspp_enable
         # 频域变换层
@@ -596,6 +793,14 @@ class FrequencyDomainProcess(nn.Module):
             self.gate_fc = nn.Sequential(nn.Conv2d(dim // 8, 1, 1), nn.Sigmoid())
 
     def forward(self, x):
+        """Apply frequency-domain filtering and gated fusion.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(B, C, H, W)`.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, C, H, W)` after fusing spatial and frequency features.
+        """
         # 频域变换
         fft_feat = torch.fft.rfft2(x, norm="ortho")
         fft_cat = torch.cat([fft_feat.real, fft_feat.imag], dim=1)
@@ -614,12 +819,30 @@ class FrequencyDomainProcess(nn.Module):
 
 
 class WindowCrossAttention(nn.Module):
+    """Cross-attention between spatial and frequency domains over windowed patches."""
+
     def __init__(self, dim, window_size=32, num_heads=4):
+        """Initialize the cross-attention module.
+
+        Args:
+            dim (int): Feature dimension for attention queries/keys/values.
+            window_size (int): Spatial window size used to partition the inputs.
+            num_heads (int): Number of attention heads.
+        """
         super().__init__()
         self.window_size = window_size
         self.attn = nn.MultiheadAttention(dim, num_heads)
 
     def forward(self, spa, freq):
+        """Fuse spatial and frequency features through windowed cross-attention.
+
+        Args:
+            spa (torch.Tensor): Spatial-domain tensor of shape `(B, C, H, W)`.
+            freq (torch.Tensor): Frequency-domain tensor of shape `(B, C, H, W)`.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, C, H, W)` containing fused features.
+        """
         B, C, H, W = spa.shape
         # 窗口划分
         spa = spa.view(B, C, H // self.window_size, self.window_size, W // self.window_size, self.window_size)
@@ -639,6 +862,8 @@ class WindowCrossAttention(nn.Module):
 
 
 class SMS_AfterEffect(nn.Module):
+    """After-effect module combining spatial transformers, frequency processing, and ASPP."""
+
     def __init__(
         self,
         dim=90,
@@ -656,6 +881,24 @@ class SMS_AfterEffect(nn.Module):
         num_heads_WCA=4,
         window_size_WCA=32,
     ):
+        """Configure the after-effect stack.
+
+        Args:
+            dim (int): Channel dimension throughout the module.
+            window_size (int): Spatial window size for attention blocks.
+            depth (int): Total number of transformer layers in the spatial block.
+            num_head (int): Attention heads inside transformer layers.
+            mlp_ratio (float): MLP expansion ratio for transformer blocks.
+            qkv_bias (bool): Whether to use bias in QKV projections.
+            qk_scale (float | None): Optional scaling factor for queries.
+            weight_factor (float): Mixing weight for channel attention contributions.
+            memory_blocks (int): Number of atoms in channel attention dictionaries.
+            down_rank (int): Dimensionality reduction within channel attention.
+            drop_path (float | Sequence[float]): Stochastic depth schedule.
+            split_size (int): Window split factor for attention.
+            num_heads_WCA (int): Number of heads in the window cross-attention.
+            window_size_WCA (int): Window size for cross-attention fusion.
+        """
         super().__init__()
         if isinstance(drop_path, float):
             drop_path_seq: List[float] = [drop_path] * depth
@@ -697,6 +940,14 @@ class SMS_AfterEffect(nn.Module):
         self.aspp = ASPP_Enhanced(dim, dim, [2, 4, 6])
 
     def forward(self, x):
+        """Execute the after-effect processing chain.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(B, C, H, W)`.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, C, H, W)` after spatial-frequency fusion.
+        """
         # 空间域处理
         spa_feat = self.spatial_block(x)
         # 频域处理
@@ -709,6 +960,8 @@ class SMS_AfterEffect(nn.Module):
 
 
 class SMSBlock(nn.Module):
+    """Stack of SSMTDA blocks followed by an after-effect refinement."""
+
     def __init__(
         self,
         i_layer=0,
@@ -725,6 +978,23 @@ class SMSBlock(nn.Module):
         drop_path: Union[Sequence[float], float] = 0.0,
         split_size=1,
     ):
+        """Initialize the SMS block.
+
+        Args:
+            i_layer (int): Index of the current stage, used for selecting cross-attention window size.
+            dim (int): Channel dimension for all submodules.
+            window_size (int): Spatial window size for SSMTDA blocks.
+            depth (int): Number of SSMTDA layers in the block.
+            num_head (int): Number of attention heads per SSMTDA.
+            mlp_ratio (float): Expansion ratio for SSMTDA MLP layers.
+            qkv_bias (bool): Whether to use bias in QKV projections.
+            qk_scale (float | None): Optional scaling for queries.
+            weight_factor (float): Mixing factor for channel attention.
+            memory_blocks (int): Number of dictionary atoms for channel attention.
+            down_rank (int): Reduction factor inside channel attention.
+            drop_path (float | Sequence[float]): Stochastic depth schedule.
+            split_size (int): Number of spatial splits for window attention.
+        """
         super(SMSBlock, self).__init__()
         # if i_layer == 0:
         #     stage_level = 'shallow'
@@ -782,6 +1052,14 @@ class SMSBlock(nn.Module):
         self.conv = nn.Conv2d(dim, dim, 3, 1, 1)
 
     def forward(self, x):
+        """Forward pass through the SMS block.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(B, C, H, W)`.
+
+        Returns:
+            torch.Tensor: Tensor of shape `(B, C, H, W)` with spatial refinement applied.
+        """
         # out = self.pre_aspp(x)
         out = self.smsblock(x)
         out = self.aftereffect(out)
@@ -789,6 +1067,14 @@ class SMSBlock(nn.Module):
         return out
 
     def flops(self, shape):
+        """Estimate FLOPs for the SMS block.
+
+        Args:
+            shape (tuple[int, int]): Spatial shape `(H, W)` of the feature map.
+
+        Returns:
+            int: Estimated floating-point operations.
+        """
         flops = 0
         for blk in self.smsblock:
             sm_block = cast(SSMTDA, blk)
@@ -797,6 +1083,8 @@ class SMSBlock(nn.Module):
 
 
 class SERT(nn.Module):
+    """Spectral enhancement transformer with optional patch-wise processing."""
+
     def __init__(
         self,
         inp_channels=31,
@@ -814,6 +1102,24 @@ class SERT(nn.Module):
         drop_path_rate=0.1,
         weight_factor=0.1,
     ):
+        """Initialize the SERT architecture.
+
+        Args:
+            inp_channels (int): Number of input spectral channels.
+            dim (int): Base embedding dimension.
+            window_sizes (list[int]): Window sizes for each transformer stage.
+            depths (list[int]): Number of blocks in each stage.
+            num_heads (list[int]): Attention heads per stage.
+            split_sizes (list[int]): Spatial split factors per stage.
+            mlp_ratio (float): Expansion ratio for MLPs.
+            down_rank (int): Reduction factor used in channel attention dictionaries.
+            memory_blocks (int): Number of dictionary atoms for channel attention.
+            qkv_bias (bool): Whether to include bias in QKV projections.
+            qk_scale (float | None): Optional scaling factor applied to queries.
+            bias (bool): Whether to include bias terms in output convolutions.
+            drop_path_rate (float): Maximum stochastic depth rate.
+            weight_factor (float): Mixing factor for channel attention contributions.
+        """
         super(SERT, self).__init__()
 
         self.conv_first = nn.Conv2d(inp_channels, dim, 3, 1, 1)
@@ -844,6 +1150,14 @@ class SERT(nn.Module):
         self.conv_delasta = nn.Conv2d(dim, inp_channels, 3, 1, 1)
 
     def forward(self, inp_img):
+        """Forward pass for the SERT model supporting 4D or 5D inputs.
+
+        Args:
+            inp_img (torch.Tensor): Input tensor of shape `(B, C, H, W)` or `(B, P, C, H, W)`.
+
+        Returns:
+            torch.Tensor: Output tensor matching the input leading dimensions with spatial shape `(H, W)`.
+        """
         if inp_img.dim() not in (4, 5):
             raise ValueError("SERT expects input with 4 or 5 dimensions.")
 
@@ -889,6 +1203,14 @@ class SERT(nn.Module):
         return x
 
     def flops(self, shape):
+        """Estimate FLOPs for the full SERT stack.
+
+        Args:
+            shape (tuple[int, int]): Spatial shape `(H, W)` of the feature map.
+
+        Returns:
+            int: Estimated floating-point operations across all layers.
+        """
         flops = 0
         for i, layer in enumerate(self.layers):
             sms_layer = cast(SMSBlock, layer)
