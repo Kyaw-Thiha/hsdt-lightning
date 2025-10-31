@@ -3,7 +3,7 @@
 # Author : Guanyiman Fu, Fengchao Xiong, Member, IEEE, Jianfeng Lu, Member, IEEE, Jun Zhou, Senior Member, IEEE, Jiantao Zhou, Senior Member, IEEE, and Yuntao Qian, Senior Member, IEEE
 # Date   : 09/01/2024
 #
-# This file is part of SSRT-Unet (https://arxiv.org/abs/2401.03885).
+# This file is originally part of SSRT-Unet, but is modified for our use case (https://arxiv.org/abs/2401.03885).
 # https://github.com/lronkitty/SSRT/tree/main
 # Distributed under MIT License.
 
@@ -20,7 +20,7 @@ from torchtyping import TensorType
 from typeguard import typechecked
 from typing import Optional, List, Tuple, Type, Union, cast, Sequence, Protocol
 
-from .combinations import *
+# from .combinations import *
 
 """
 This may change significantly as I work out how to implement this properly, but until large portions of this are copied from Phil Wang (@lucidrains)
