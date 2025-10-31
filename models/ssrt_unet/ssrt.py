@@ -1048,7 +1048,7 @@ class BasicLayer_bidir_01(nn.Module):
         qk_scale (float | None, optional): Override default qk scale of head_dim ** -0.5 if set.
         drop (float, optional): Dropout rate. Default: 0.0
         attn_drop (float, optional): Attention dropout rate. Default: 0.0
-        drop_path (float | tuple[float], optional): Stochastic depth rate. Default: 0.0
+        drop_path (float | Sequence[NumberLike], optional): Stochastic depth rate. Default: 0.0
         norm_layer (nn.Module, optional): Normalization layer. Default: nn.LayerNorm
         downsample (nn.Module | None, optional): Downsample layer at the end of the layer. Default: None
         use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False.
@@ -1066,7 +1066,7 @@ class BasicLayer_bidir_01(nn.Module):
         qk_scale=None,
         drop=0.0,
         attn_drop=0.0,
-        drop_path=0.0,
+        drop_path: Union[float, List[float]] = 0.0,
         norm_layer=nn.LayerNorm,
         downsample=None,
         use_checkpoint=False,
@@ -1232,7 +1232,7 @@ class BRRSTB(nn.Module):
         qk_scale (float | None, optional): Override default qk scale of head_dim ** -0.5 if set.
         drop (float, optional): Dropout rate. Default: 0.0
         attn_drop (float, optional): Attention dropout rate. Default: 0.0
-        drop_path (float | tuple[float], optional): Stochastic depth rate. Default: 0.0
+        drop_path (float | Sequence[NumberLike], optional): Stochastic depth rate. Default: 0.0
         norm_layer (nn.Module, optional): Normalization layer. Default: nn.LayerNorm
         downsample (nn.Module | None, optional): Downsample layer at the end of the layer. Default: None
         use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False.
@@ -1254,7 +1254,7 @@ class BRRSTB(nn.Module):
         qk_scale=None,
         drop=0.0,
         attn_drop=0.0,
-        drop_path=0.0,
+        drop_path: Union[float, List[float]] = 0.0,
         norm_layer=nn.LayerNorm,
         downsample=None,
         use_checkpoint=False,
@@ -1717,18 +1717,18 @@ class ssrt(nn.Module):
         if self.upsampler == "pixelshuffle":
             # for classical SR
             x = self.conv_first(x)
-            x = self.conv_after_body(self.forward_features(x)) + x
+            x = self.conv_after_body(list_to_tensor3d(self.forward_features(tensor3d_to_list(x)))) + x
             x = self.conv_before_upsample(x)
             x = self.conv_last(self.upsample(x))
         elif self.upsampler == "pixelshuffledirect":
             # for lightweight SR
             x = self.conv_first(x)
-            x = self.conv_after_body(self.forward_features(x)) + x
+            x = self.conv_after_body(list_to_tensor3d(self.forward_features(tensor3d_to_list(x)))) + x
             x = self.upsample(x)
         elif self.upsampler == "nearest+conv":
             # for real-world SR
             x = self.conv_first(x)
-            x = self.conv_after_body(self.forward_features(x)) + x
+            x = self.conv_after_body(list_to_tensor3d(self.forward_features(tensor3d_to_list(x)))) + x
             x = self.conv_before_upsample(x)
             x = self.lrelu(self.conv_up1(torch.nn.functional.interpolate(x, scale_factor=2, mode="nearest")))
             if self.upscale == 4:
