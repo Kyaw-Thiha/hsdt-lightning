@@ -73,7 +73,7 @@ class DeConv3dBNReLU(nn.Sequential):
 
 class DeConv2dBNReLU(nn.Sequential):
     def __init__(self, in_channels, channels, k=3, s=1, p=1, inplace=False):
-        super(DeConv3dBNReLU, self).__init__()
+        super(DeConv2dBNReLU, self).__init__()
         self.add_module("deconv", nn.ConvTranspose2d(in_channels, channels, k, s, p, bias=False))
         self.add_module("bn", BatchNorm2d(channels))
         self.add_module("relu", nn.ReLU(inplace=inplace))

@@ -17,6 +17,7 @@ from timm.layers.helpers import to_2tuple
 from timm.layers.weight_init import trunc_normal_
 from torchtyping import TensorType
 from typeguard import typechecked
+from typing import Optional, List, Tuple, Type, Union, cast, Sequence, Protocol
 
 from .combinations import *
 
@@ -60,6 +61,13 @@ def as_tensor(a):
 
 SeqTensor = TensorType["batch", "seq_len", "token_dim"]
 StateTensor = TensorType["batch", "state_len", "state_dim"]
+StateTuple = Tuple[torch.Tensor, Optional[torch.Tensor]]
+Size2T = Tuple[int, int]
+NumberLike = Union[int, float]
+
+
+class FlopsComputable(Protocol):
+    def flops(self) -> NumberLike: ...
 
 
 @typechecked
@@ -77,7 +85,7 @@ class RecurrentStateGate(nn.Module):
         z = torch.tanh(self.main_proj(x))
         i = torch.sigmoid(self.input_proj(x) - 1)
         f = torch.sigmoid(self.forget_proj(x) + 1)
-        return torch.mul(state, f) + torch.mul(z, i)
+        return cast(StateTensor, torch.mul(state, f) + torch.mul(z, i))
 
 
 class RecurrentWindowAttention(nn.Module):
@@ -143,6 +151,7 @@ class RecurrentWindowAttention(nn.Module):
         relative_coords[:, :, 1] += self.window_size[1] - 1
         relative_coords[:, :, 0] *= 2 * self.window_size[1] - 1
         relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
+        self.relative_position_index: torch.Tensor
         self.register_buffer("relative_position_index", relative_position_index)
 
         self.state_linear = nn.Linear(dim, dim * 2, bias=qkv_bias)
@@ -223,21 +232,27 @@ class RecurrentWindowAttention(nn.Module):
         cross_attn_x = qxs @ ks.transpose(-2, -1)
 
         # relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1)  # Wh*Ww,Wh*Ww,nH
+        flat_index = torch.flatten(self.relative_position_index)
+        bias_shape = (
+            self.window_size[0] * self.window_size[1],
+            self.window_size[0] * self.window_size[1],
+            -1,
+        )
 
-        relative_position_bias_cross_s = self.relative_position_bias_table_cross_s[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1
+        relative_position_bias_cross_s = torch.reshape(
+            self.relative_position_bias_table_cross_s[flat_index], bias_shape
         )  # Wh*Ww,Wh*Ww,nH
 
-        relative_position_bias_self_s = self.relative_position_bias_table_self_s[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1
+        relative_position_bias_self_s = torch.reshape(
+            self.relative_position_bias_table_self_s[flat_index], bias_shape
         )  # Wh*Ww,Wh*Ww,nH
 
-        relative_position_bias_cross_x = self.relative_position_bias_table_cross_x[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1
+        relative_position_bias_cross_x = torch.reshape(
+            self.relative_position_bias_table_cross_x[flat_index], bias_shape
         )  # Wh*Ww,Wh*Ww,nH
 
-        relative_position_bias_self_x = self.relative_position_bias_table_self_x[self.relative_position_index.view(-1)].view(
-            self.window_size[0] * self.window_size[1], self.window_size[0] * self.window_size[1], -1
+        relative_position_bias_self_x = torch.reshape(
+            self.relative_position_bias_table_self_x[flat_index], bias_shape
         )  # Wh*Ww,Wh*Ww,nH
 
         # relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
@@ -304,6 +319,8 @@ class RecurrentWindowAttention(nn.Module):
             return output_x, state_x
 
         if self.gate == "sru":
+            reset = None
+            forget = None
             if self.proj_s is True:
                 state_x = self.proj_state(torch.cat((cross_s, self_s), dim=2))
                 state_x = self.proj_drop(state_x)
@@ -408,31 +425,42 @@ class PatchEmbed(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer. Default: None
     """
 
-    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
+    def __init__(
+        self,
+        img_size: Union[int, Size2T] = 224,
+        patch_size: Union[int, Size2T] = 4,
+        in_chans: int = 3,
+        embed_dim: int = 96,
+        norm_layer: Optional[Type[nn.Module]] = None,
+    ):
         super().__init__()
-        img_size = to_2tuple(img_size)
-        patch_size = to_2tuple(patch_size)
-        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.patches_resolution = patches_resolution
+        img_size_tuple: Size2T = cast(Size2T, to_2tuple(img_size))
+        patch_size_tuple: Size2T = cast(Size2T, to_2tuple(patch_size))
+        patches_resolution: Size2T = (
+            img_size_tuple[0] // patch_size_tuple[0],
+            img_size_tuple[1] // patch_size_tuple[1],
+        )
+        self.img_size: Size2T = img_size_tuple
+        self.patch_size: Size2T = patch_size_tuple
+        self.patches_resolution: Size2T = patches_resolution
         self.num_patches = patches_resolution[0] * patches_resolution[1]
 
         self.in_chans = in_chans
         self.embed_dim = embed_dim
 
+        self.norm: Optional[nn.Module]
         if norm_layer is not None:
             self.norm = norm_layer(embed_dim)
         else:
             self.norm = None
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.flatten(2).transpose(1, 2)  # B Ph*Pw C
         if self.norm is not None:
             x = self.norm(x)
         return x
 
-    def flops(self):
+    def flops(self) -> int:
         flops = 0
         H, W = self.img_size
         if self.norm is not None:
@@ -451,25 +479,35 @@ class PatchUnEmbed(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer. Default: None
     """
 
-    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
+    def __init__(
+        self,
+        img_size: Union[int, Size2T] = 224,
+        patch_size: Union[int, Size2T] = 4,
+        in_chans: int = 3,
+        embed_dim: int = 96,
+        norm_layer: Optional[Type[nn.Module]] = None,
+    ):
         super().__init__()
-        img_size = to_2tuple(img_size)
-        patch_size = to_2tuple(patch_size)
-        patches_resolution = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
-        self.img_size = img_size
-        self.patch_size = patch_size
-        self.patches_resolution = patches_resolution
+        img_size_tuple: Size2T = cast(Size2T, to_2tuple(img_size))
+        patch_size_tuple: Size2T = cast(Size2T, to_2tuple(patch_size))
+        patches_resolution: Size2T = (
+            img_size_tuple[0] // patch_size_tuple[0],
+            img_size_tuple[1] // patch_size_tuple[1],
+        )
+        self.img_size: Size2T = img_size_tuple
+        self.patch_size: Size2T = patch_size_tuple
+        self.patches_resolution: Size2T = patches_resolution
         self.num_patches = patches_resolution[0] * patches_resolution[1]
 
         self.in_chans = in_chans
         self.embed_dim = embed_dim
 
-    def forward(self, x, x_size):
+    def forward(self, x: torch.Tensor, x_size: Size2T) -> torch.Tensor:
         B, HW, C = x.shape
         x = x.transpose(1, 2).view(B, self.embed_dim, x_size[0], x_size[1])  # B Ph*Pw C
         return x
 
-    def flops(self):
+    def flops(self) -> int:
         flops = 0
         return flops
 
@@ -603,15 +641,23 @@ class UpsampleOneStep(nn.Sequential):
 
     """
 
-    def __init__(self, scale, num_feat, num_out_ch, input_resolution=None):
+    def __init__(
+        self,
+        scale: int,
+        num_feat: int,
+        num_out_ch: int,
+        input_resolution: Optional[Size2T] = None,
+    ):
         self.num_feat = num_feat
-        self.input_resolution = input_resolution
+        self.input_resolution: Optional[Size2T] = input_resolution
         m = []
         m.append(nn.Conv2d(num_feat, (scale**2) * num_out_ch, 3, 1, 1))
         m.append(nn.PixelShuffle(scale))
         super(UpsampleOneStep, self).__init__(*m)
 
-    def flops(self):
+    def flops(self) -> int:
+        if self.input_resolution is None:
+            raise ValueError("UpsampleOneStep.flops() requires input_resolution to be set.")
         H, W = self.input_resolution
         flops = H * W * self.num_feat * 3 * 9
         return flops
@@ -704,8 +750,13 @@ class BlockRecurrentSwinIRBlock(nn.Module):
         return attn_mask
 
     def forward(self, x, state, x_size, x_size_next):
+        state_tensor: torch.Tensor
+        cell_state: Optional[torch.Tensor] = None
         if self.gate == "sru":
-            (state, c) = state
+            state_tensor, cell_state = cast(Tuple[torch.Tensor, Optional[torch.Tensor]], state)
+        else:
+            state_tensor = cast(torch.Tensor, state)
+        state = state_tensor
         B, L, C = x.shape
         # assert L == H * W, "input feature has wrong size"
 
@@ -815,14 +866,15 @@ class BlockRecurrentSwinIRBlock(nn.Module):
             f = forget.relu().tanh()
             r = reset.relu().tanh()
             s = state.tanh()
-            if c is not None:
-                c = torch.mul(f, c) + torch.mul((1 - f), s)
+            if cell_state is not None:
+                cell_state = torch.mul(f, cell_state) + torch.mul((1 - f), s)
             else:
-                c = torch.mul((1 - f), s)
-            s = torch.mul(r, c) + torch.mul((1 - r), shortcut_state)
+                cell_state = torch.mul((1 - f), s)
+            assert cell_state is not None
+            s = torch.mul(r, cell_state) + torch.mul((1 - r), shortcut_state)
             if self.if_mlp_s:
                 s = s + self.drop_path(self.mlp_state(self.norm2_state(s)))
-            return x, (s, c)
+            return x, (s, cell_state)
 
         elif self.gate == "qru":
             if self.input_resolution == x_size:
@@ -1026,6 +1078,7 @@ class BasicLayer_bidir_01(nn.Module):
 
         # patch merging layer
         self.downsample_flag = downsample
+        self.downsample: Optional[nn.Module]
         if downsample is not None:
             self.downsample = downsample(input_resolution, dim=dim, norm_layer=norm_layer)
         else:
@@ -1036,9 +1089,15 @@ class BasicLayer_bidir_01(nn.Module):
         # self.state_back_init = trunc_normal_(self.state_back_init, std=.02)
         self.gate = gate
 
-    def forward(self, x_list, x_size, x_size_next, state=None):
-        x_list_ = x_list.copy()
-        x_list_2 = x_list.copy()
+    def forward(
+        self,
+        x_list: Sequence[torch.Tensor],
+        x_size,
+        x_size_next,
+        state: Optional[Union[torch.Tensor, StateTuple]] = None,
+    ):
+        x_list_ = list(x_list)
+        x_list_2 = list(x_list)
         x_all = list_to_tensor3d(x_list)
         x_mean = torch.mean(x_all, dim=-2)
         if state is None:
@@ -1052,26 +1111,46 @@ class BasicLayer_bidir_01(nn.Module):
             if self.gate == "sru":
                 state = (state, None)
                 state_back = (state_back, None)
+        else:
+            state_back = state
+
+        state_forward: Union[torch.Tensor, StateTuple] = state
+        state_backward: Union[torch.Tensor, StateTuple] = state_back
 
         for blk_id in range(len(self.blocks)):
+            block = self.blocks[blk_id]
+            block_back = self.blocks_back[blk_id]
             for i in range(len(x_list)):
-                if self.use_checkpoint:
-                    x_list_[i], state = checkpoint.checkpoint(self.blocks[blk_id], x_list_[i], state, x_size, x_size_next)
+                if self.use_checkpoint and checkpoint is not None:
+                    checkpoint_result = checkpoint.checkpoint(block, x_list_[i], state_forward, x_size, x_size_next)
                 else:
-                    x_list_[i], state = self.blocks[blk_id](x_list_[i], state, x_size, x_size_next)
+                    checkpoint_result = block(x_list_[i], state_forward, x_size, x_size_next)
+                x_block, state_forward = cast(
+                    Tuple[torch.Tensor, Union[torch.Tensor, StateTuple]],
+                    checkpoint_result,
+                )
+                x_list_[i] = x_block
             for i in range(len(x_list)):
-                if self.use_checkpoint:
-                    x_list_2[i], state_back = checkpoint.checkpoint(
-                        self.blocks_back[blk_id], x_list_2[i], state_back, x_size, x_size_next
-                    )
+                idx = len(x_list) - i - 1
+                if self.use_checkpoint and checkpoint is not None:
+                    checkpoint_result_back = checkpoint.checkpoint(block_back, x_list_2[idx], state_backward, x_size, x_size_next)
                 else:
-                    x_list_2[-i + 1], state_back = self.blocks_back[blk_id](x_list_2[-i + 1], state_back, x_size, x_size_next)
+                    checkpoint_result_back = block_back(x_list_2[idx], state_backward, x_size, x_size_next)
+                x_back, state_backward = cast(
+                    Tuple[torch.Tensor, Union[torch.Tensor, StateTuple]],
+                    checkpoint_result_back,
+                )
+                x_list_2[idx] = x_back
         x_list_res = add_list(x_list_, x_list_2)
         if self.downsample_flag == PatchUnmerging:
             for i in range(len(x_list_res)):
+                if self.downsample is None:
+                    raise ValueError("Downsample module is not initialized.")
                 x_list_[i] = self.downsample(x_list_res[i], x_size)
         elif self.downsample_flag == PatchMerging:
             for i in range(len(x_list_res)):
+                if self.downsample is None:
+                    raise ValueError("Downsample module is not initialized.")
                 x_list_[i] = self.downsample(x_list_res[i])
         else:
             return x_list_res, x_list_res
@@ -1080,12 +1159,14 @@ class BasicLayer_bidir_01(nn.Module):
     def extra_repr(self) -> str:
         return f"dim={self.dim}, input_resolution={self.input_resolution}, depth={self.depth}"
 
-    def flops(self):
-        flops = 0
+    def flops(self) -> float:
+        flops = 0.0
         for blk in self.blocks:
-            flops += blk.flops()
+            blk_with_flops = cast(FlopsComputable, blk)
+            flops += float(blk_with_flops.flops())
         if self.downsample is not None:
-            flops += self.downsample.flops()
+            downsample_with_flops = cast(FlopsComputable, self.downsample)
+            flops += float(downsample_with_flops.flops())
         return flops
 
 
@@ -1129,9 +1210,9 @@ class BRRSTB(nn.Module):
         norm_layer=nn.LayerNorm,
         downsample=None,
         use_checkpoint=False,
-        img_size=224,
-        img_size_next=224,
-        patch_size=4,
+        img_size: Union[int, Size2T] = 224,
+        img_size_next: Union[int, Size2T] = 224,
+        patch_size: Union[int, Size2T] = 4,
         resi_connection="1conv",
         gate="pass",
         if_mlp_s=True,
@@ -1176,21 +1257,29 @@ class BRRSTB(nn.Module):
         if downsample is not None:
             self.downsample = downsample(input_resolution, dim=dim, norm_layer=norm_layer)
 
-        self.patch_embed = PatchEmbed(img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
+        img_size_tuple: Size2T = cast(Size2T, to_2tuple(img_size))
+        img_size_next_tuple: Size2T = cast(Size2T, to_2tuple(img_size_next))
+        patch_size_tuple: Size2T = cast(Size2T, to_2tuple(patch_size))
+
+        self.patch_embed = PatchEmbed(
+            img_size=img_size_tuple, patch_size=patch_size_tuple, in_chans=0, embed_dim=dim, norm_layer=None
+        )
 
         self.patch_embed_next = PatchEmbed(
-            img_size=img_size_next, patch_size=patch_size, in_chans=0, embed_dim=dim_next, norm_layer=None
+            img_size=img_size_next_tuple, patch_size=patch_size_tuple, in_chans=0, embed_dim=dim_next, norm_layer=None
         )
 
-        self.patch_unembed = PatchUnEmbed(img_size=img_size, patch_size=patch_size, in_chans=0, embed_dim=dim, norm_layer=None)
+        self.patch_unembed = PatchUnEmbed(
+            img_size=img_size_tuple, patch_size=patch_size_tuple, in_chans=0, embed_dim=dim, norm_layer=None
+        )
 
         self.patch_unembed_next = PatchUnEmbed(
-            img_size=img_size_next, patch_size=patch_size, in_chans=0, embed_dim=dim_next, norm_layer=None
+            img_size=img_size_next_tuple, patch_size=patch_size_tuple, in_chans=0, embed_dim=dim_next, norm_layer=None
         )
-        self.img_size = img_size
-        self.img_size_next = img_size_next
+        self.img_size: Size2T = img_size_tuple
+        self.img_size_next: Size2T = img_size_next_tuple
 
-    def forward(self, x_list, x_size):
+    def forward(self, x_list: Sequence[torch.Tensor], x_size: Size2T):
         x_size_next = (
             round(x_size[0] / (self.img_size[0] / self.img_size_next[0])),
             round(x_size[1] / (self.img_size[1] / self.img_size_next[1])),
@@ -1204,16 +1293,21 @@ class BRRSTB(nn.Module):
         for i in range(len(x_list_after)):
             x_list_after[i] = self.patch_embed_next(x_list_after[i])
 
+        downsampled_list = list(x_list)
         if self.downsample_flag == PatchUnmerging:
-            for i in range(len(x_list)):
-                x_list[i] = self.downsample(x_list[i], (x_size_next[0] // 2, x_size_next[1] // 2))
+            for i in range(len(downsampled_list)):
+                if self.downsample is None:
+                    raise ValueError("Downsample module is not initialized.")
+                downsampled_list[i] = self.downsample(downsampled_list[i], (x_size_next[0] // 2, x_size_next[1] // 2))
 
         elif self.downsample_flag == PatchMerging:
-            for i in range(len(x_list)):
-                x_list[i] = self.downsample(x_list[i])
-        x_list = add_list(x_list, x_list_after)
+            for i in range(len(downsampled_list)):
+                if self.downsample is None:
+                    raise ValueError("Downsample module is not initialized.")
+                downsampled_list[i] = self.downsample(downsampled_list[i])
+        x_list_result = add_list(downsampled_list, x_list_after)
 
-        return x_list, x_list_res, x_size_next
+        return x_list_result, x_list_res, x_size_next
 
     def flops(self):
         flops = 0
@@ -1256,8 +1350,8 @@ class ssrt(nn.Module):
 
     def __init__(
         self,
-        img_size=64,
-        patch_size=1,
+        img_size: Union[int, Size2T] = 64,
+        patch_size: Union[int, Size2T] = 1,
         in_chans=3,
         embed_dim=96,
         depths=[6, 6, 6, 6],
@@ -1309,9 +1403,12 @@ class ssrt(nn.Module):
         self.mlp_ratio = mlp_ratio
 
         # split image into non-overlapping patches
+        img_size_tuple: Size2T = cast(Size2T, to_2tuple(img_size))
+        patch_size_tuple: Size2T = cast(Size2T, to_2tuple(patch_size))
+
         self.patch_embed = PatchEmbed(
-            img_size=img_size,
-            patch_size=patch_size,
+            img_size=img_size_tuple,
+            patch_size=patch_size_tuple,
             in_chans=embed_dim,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None,
@@ -1319,15 +1416,15 @@ class ssrt(nn.Module):
         num_patches = self.patch_embed.num_patches
         patches_resolution = self.patch_embed.patches_resolution
         self.patches_resolution = patches_resolution
-        patches_resolution_list = []
-        dim_list = []
-        self.img_size_list = []
+        patches_resolution_list: List[Size2T] = []
+        dim_list: List[int] = []
+        self.img_size_list: List[Size2T] = []
         half_layers = -((-self.num_layers) // 2)
         self.half_layers = half_layers
         for i_layer in range(half_layers):
             patches_resolution_list.append((patches_resolution[0] // (2**i_layer), patches_resolution[1] // (2**i_layer)))
             dim_list.append(embed_dim * 2**i_layer)
-            self.img_size_list.append((img_size[0] // (2**i_layer), img_size[1] // (2**i_layer)))
+            self.img_size_list.append((img_size_tuple[0] // (2**i_layer), img_size_tuple[1] // (2**i_layer)))
         for i_layer in range(half_layers, self.num_layers):
             patches_resolution_list.append(
                 (
@@ -1337,16 +1434,19 @@ class ssrt(nn.Module):
             )
             dim_list.append(embed_dim * 2 ** ((self.num_layers - i_layer) - 1))
             self.img_size_list.append(
-                (img_size[0] // (2 ** ((self.num_layers - i_layer) - 1)), img_size[1] // (2 ** ((self.num_layers - i_layer) - 1)))
+                (
+                    img_size_tuple[0] // (2 ** ((self.num_layers - i_layer) - 1)),
+                    img_size_tuple[1] // (2 ** ((self.num_layers - i_layer) - 1)),
+                )
             )
         patches_resolution_list.append((patches_resolution[0], patches_resolution[1]))
         dim_list.append(embed_dim)
-        self.img_size_list.append(img_size)
+        self.img_size_list.append(img_size_tuple)
 
         # merge non-overlapping patches into image
         self.patch_unembed = PatchUnEmbed(
-            img_size=img_size,
-            patch_size=patch_size,
+            img_size=img_size_tuple,
+            patch_size=patch_size_tuple,
             in_chans=embed_dim,
             embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None,
@@ -1465,11 +1565,11 @@ class ssrt(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    @torch.jit.ignore
+    @torch.jit.ignore()
     def no_weight_decay(self):
         return {"absolute_pos_embed"}
 
-    @torch.jit.ignore
+    @torch.jit.ignore()
     def no_weight_decay_keywords(self):
         return {"relative_position_bias_table"}
 
@@ -1578,8 +1678,13 @@ class ssrt(nn.Module):
         H, W = self.patches_resolution
         flops += H * W * 3 * self.embed_dim * 9
         flops += self.patch_embed.flops()
-        for i, layer in enumerate(self.layers):
-            flops += layer.flops()
+        for layer in self.layers:
+            layer_with_flops = cast(FlopsComputable, layer)
+            flops += float(layer_with_flops.flops())
         flops += H * W * 3 * self.embed_dim * self.embed_dim
-        flops += self.upsample.flops()
+        if hasattr(self, "upsample"):
+            upsample_module = getattr(self, "upsample")
+            if isinstance(upsample_module, nn.Module):
+                upsample_with_flops = cast(FlopsComputable, upsample_module)
+                flops += float(upsample_with_flops.flops())
         return flops
