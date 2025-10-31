@@ -1573,19 +1573,18 @@ class ssrt(nn.Module):
     def no_weight_decay_keywords(self):
         return {"relative_position_bias_table"}
 
-    def check_image_size(self, x):
-        _, _, h, w = x.size()
-        mod_pad_h = (self.window_size - h % self.window_size) % self.window_size
-        mod_pad_w = (self.window_size - w % self.window_size) % self.window_size
-        x = F.pad(x, (0, mod_pad_w, 0, mod_pad_h), "reflect")
-        return x
-
-    def check_image_size_3d(self, x):
-        _, _, _, h, w = x.size()
-        mod_pad_h = (self.window_size - h % self.window_size) % self.window_size
-        mod_pad_w = (self.window_size - w % self.window_size) % self.window_size
-        x = F.pad(x, (0, 0, 0, 0, 0, 0, 0, mod_pad_w, 0, mod_pad_h), "reflect")
-        return x
+    def check_image_size(self, x: torch.Tensor) -> torch.Tensor:
+        if x.dim() == 4:
+            h, w = x.shape[-2:]
+            mod_pad_h = (self.window_size - h % self.window_size) % self.window_size
+            mod_pad_w = (self.window_size - w % self.window_size) % self.window_size
+            return F.pad(x, (0, mod_pad_w, 0, mod_pad_h), "reflect")
+        if x.dim() == 5:
+            h, w = x.shape[-2:]
+            mod_pad_h = (self.window_size - h % self.window_size) % self.window_size
+            mod_pad_w = (self.window_size - w % self.window_size) % self.window_size
+            return F.pad(x, (0, mod_pad_w, 0, mod_pad_h, 0, 0), "reflect")
+        raise ValueError(f"Unsupported input dimensionality for padding: {x.dim()}")
 
     def forward_features(self, x_list):
         x_size = (x_list[0].shape[2], x_list[0].shape[3])
@@ -1630,9 +1629,13 @@ class ssrt(nn.Module):
         return x_list__
 
     def forward(self, x):
-        self.mean = self.mean.type_as(x)
-        x = (x - self.mean) * self.img_range
-        H, W = x.shape[2:]
+        mean = self.mean.type_as(x)
+        if x.dim() == 5:
+            mean_to_use = mean.unsqueeze(2)
+        else:
+            mean_to_use = mean
+        x = (x - mean_to_use) * self.img_range
+        H, W = x.shape[-2:]
         if self.upsampler == "pixelshuffle":
             # for classical SR
             x = self.conv_first(x)
@@ -1655,8 +1658,17 @@ class ssrt(nn.Module):
             x = self.conv_last(self.lrelu(self.conv_hr(x)))
         else:
             # for image denoising and JPEG compression artifact reduction
+            original_dim = x.dim()
             x = self.check_image_size(x)
-            x = x.unsqueeze(1)
+            squeeze_depth_dim = False
+            if original_dim == 4:
+                x = x.unsqueeze(1)
+                squeeze_depth_dim = True
+            elif original_dim == 5 and x.shape[1] != self.conv_first.in_channels:
+                raise ValueError(
+                    "Unexpected channel configuration for 5D input. "
+                    "Please permute the tensor to the shape (B, C, D, H, W) before calling the model."
+                )
             x_first = self.conv_first(x)
 
             x_list = tensor3d_to_list(x_first)
@@ -1667,11 +1679,15 @@ class ssrt(nn.Module):
 
             res = self.conv_after_body(x_list) + x_first
             x = x + self.conv_last(res)
-            x = x.squeeze(1)
+            if squeeze_depth_dim:
+                x = x.squeeze(1)
 
-        x = x / self.img_range + self.mean
+        if x.dim() == 5:
+            x = x / self.img_range + mean.unsqueeze(2)
+        else:
+            x = x / self.img_range + mean
 
-        return x[:, :, : H * self.upscale, : W * self.upscale]
+        return x[..., : H * self.upscale, : W * self.upscale]
 
     def flops(self):
         flops = 0
