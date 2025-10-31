@@ -89,9 +89,11 @@ tifffile==2025.6.11
 timm==1.0.21
 torch==2.9.0
 torchmetrics==1.8.0
+torchtyping==0.1.5
 torchvision==0.24.0
 tqdm==4.67.1
 triton==3.5.0
+typeguard==2.13.3
 typer-slim==0.20.0
 typeshed_client==2.8.2
 typing_extensions==4.14.1
