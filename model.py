@@ -11,7 +11,7 @@ import lightning as L
 from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
 from lightning.pytorch.utilities.types import LRSchedulerConfig, OptimizerLRScheduler
 
-from models import HSDT, SSRT
+from models import HSDT, SSRT, SERT
 from metrics.psnr import compute_batch_mpsnr
 from metrics.ssim import compute_batch_mssim
 from metrics.charbonnier import charbonnier_loss
@@ -34,24 +34,38 @@ class HSDTLightning(L.LightningModule):
         # self.model = HSDT(in_channels, channels, encoder_count, downsample_layers, num_bands)
 
         # --- SSRT ----
-        upscale = 2
-        window_size = 8
-        height = 64
-        width = 64
-        self.model = SSRT(
-            upscale=2,
-            img_size=(height, width),
-            window_size=window_size,
-            img_range=1.0,
-            depths=[2, 2, 6, 2, 2],
-            embed_dim=channels,
-            num_heads=[2, 2, 2, 2, 2],
+        # upscale = 2
+        # window_size = 8
+        # height = 64
+        # width = 64
+        # self.model = SSRT(
+        #     upscale=2,
+        #     img_size=(height, width),
+        #     window_size=window_size,
+        #     img_range=1.0,
+        #     depths=[2, 2, 6, 2, 2],
+        #     embed_dim=channels,
+        #     num_heads=[2, 2, 2, 2, 2],
+        #     mlp_ratio=2,
+        #     upsampler=None,
+        #     in_chans=1,
+        #     gate="sru",
+        #     if_mlp_s=True,
+        # )
+
+        # --- HDST (SERT) ----
+        self.model = SERT(
+            inp_channels=31,
+            dim=96,
+            window_sizes=[16, 32, 32],
+            depths=[6, 6, 6],
+            num_heads=[6, 6, 6],
+            split_sizes=[1, 2, 4],
             mlp_ratio=2,
-            upsampler=None,
-            in_chans=1,
-            gate="sru",
-            if_mlp_s=True,
-        )
+            weight_factor=0.1,
+            memory_blocks=128,
+            down_rank=8,
+        )  # 16,32,32
 
         # For saving the hyperparameters to saved logs & checkpoints
         self.save_hyperparameters()
