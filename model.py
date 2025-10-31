@@ -55,8 +55,8 @@ class HSDTLightning(L.LightningModule):
 
         # --- HDST (SERT) ----
         self.model = SERT(
-            inp_channels=31,
-            dim=96,
+            inp_channels=40,
+            dim=64,
             window_sizes=[16, 32, 32],
             depths=[6, 6, 6],
             num_heads=[6, 6, 6],

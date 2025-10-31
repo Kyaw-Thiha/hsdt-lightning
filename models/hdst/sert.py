@@ -844,19 +844,48 @@ class SERT(nn.Module):
         self.conv_delasta = nn.Conv2d(dim, inp_channels, 3, 1, 1)
 
     def forward(self, inp_img):
-        _, _, h_inp, w_inp = inp_img.shape
+        if inp_img.dim() not in (4, 5):
+            raise ValueError("SERT expects input with 4 or 5 dimensions.")
+
+        inp_img = inp_img.contiguous()
+        layout = None
+        if inp_img.dim() == 5:
+            expected_channels = self.conv_first.in_channels
+            if inp_img.shape[1] == expected_channels and inp_img.shape[2] != expected_channels:
+                inp_img = inp_img.permute(0, 2, 1, 3, 4).contiguous()
+                layout = "channels_first"
+            else:
+                layout = "patch_first"
+
+            if inp_img.shape[2] != expected_channels:
+                print(f"Expected Channels: {expected_channels}")
+                print(f"Got Channels: {inp_img.shape[2]}")
+                raise ValueError("Channel dimension must match the configured number of input channels.")
+
+            b, patches, c, h_inp, w_inp = inp_img.shape
+            leading_shape = (b, patches)
+            flat_inp = inp_img.view(b * patches, c, h_inp, w_inp)
+        else:
+            b, c, h_inp, w_inp = inp_img.shape
+            leading_shape = (b,)
+            flat_inp = inp_img.view(b, c, h_inp, w_inp)
+
         hb, wb = 16, 16
         pad_h = (hb - h_inp % hb) % hb
         pad_w = (wb - w_inp % wb) % wb
-        inp_img = F.pad(inp_img, (0, pad_h, 0, pad_w), "reflect")
-        f1 = self.conv_first(inp_img)
+        padded_inp = F.pad(flat_inp, (0, pad_h, 0, pad_w), "reflect")
+        f1 = self.conv_first(padded_inp)
         x = f1
         for layer in self.layers:
             x = layer(x)
 
-        x = self.output(x + f1)  # + inp_img
-        x = self.conv_delasta(x) + inp_img
-        x = x[:, :, :h_inp, :w_inp]
+        x = self.output(x + f1)
+        x = self.conv_delasta(x) + padded_inp
+        x = x[:, :, :h_inp, :w_inp].contiguous()
+        output_shape = leading_shape + (x.shape[1], h_inp, w_inp)
+        x = x.view(*output_shape)
+        if layout == "channels_first":
+            x = x.permute(0, 2, 1, 3, 4).contiguous()
         return x
 
     def flops(self, shape):
