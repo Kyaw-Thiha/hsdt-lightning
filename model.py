@@ -34,7 +34,7 @@ class HSDTLightning(L.LightningModule):
         # self.model = HSDT(in_channels, channels, encoder_count, downsample_layers, num_bands)
 
         # --- SSRT ----
-        # upscale = 2
+        # upscale = 1
         # window_size = 8
         # height = 64
         # width = 64
@@ -55,11 +55,11 @@ class HSDTLightning(L.LightningModule):
 
         # --- HDST (SERT) ----
         self.model = SERT(
-            inp_channels=40,
+            inp_channels=num_bands,
             dim=64,
             window_sizes=[16, 32, 32],
             depths=[6, 6, 6],
-            num_heads=[6, 6, 6],
+            num_heads=[4, 4, 4],
             split_sizes=[1, 2, 4],
             mlp_ratio=2,
             weight_factor=0.1,

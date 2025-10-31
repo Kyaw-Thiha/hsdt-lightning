@@ -1122,6 +1122,15 @@ class SERT(nn.Module):
         """
         super(SERT, self).__init__()
 
+        for idx, heads in enumerate(num_heads):
+            if heads % 2 != 0:
+                raise ValueError(f"num_heads[{idx}]={heads} must be even so it can be split across attention branches.")
+            if dim % heads != 0:
+                raise ValueError(
+                    f"Embedding dimension {dim} must be divisible by num_heads[{idx}]={heads}. "
+                    "Choose matching values (e.g., dim=60 for heads=6 or heads=4/8 for dim=64)."
+                )
+
         self.conv_first = nn.Conv2d(inp_channels, dim, 3, 1, 1)
         self.num_layers = depths
         self.layers = nn.ModuleList()
