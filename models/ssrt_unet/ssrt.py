@@ -15,6 +15,7 @@ import torch.utils.checkpoint as checkpoint
 from timm.layers.drop import DropPath
 from timm.layers.helpers import to_2tuple
 from timm.layers.weight_init import trunc_normal_
+from torch import Tensor
 from torchtyping import TensorType
 from typeguard import typechecked
 from typing import Optional, List, Tuple, Type, Union, cast, Sequence, Protocol
@@ -26,37 +27,70 @@ This may change significantly as I work out how to implement this properly, but 
 """
 
 
-def add_list(a, b):
-    c = []
-    for i in range(len(a)):
-        c.append(a[i] + b[i])
-    return c
+def add_list(a: Sequence[Tensor], b: Sequence[Tensor]) -> List[Tensor]:
+    """Element-wise add two sequences of tensors.
+
+    Args:
+        a: Sequence of tensors.
+        b: Sequence of tensors with the same length and shapes as `a`.
+
+    Returns:
+        List[Tensor]: Summed tensors.
+    """
+    return [a[i] + b[i] for i in range(len(a))]
 
 
-def tensor3d_to_list(a):
+def tensor3d_to_list(a: Tensor) -> List[Tensor]:
+    """Split a 5D tensor into a list of 4D tensors along the depth dimension.
+
+    Args:
+        a: Tensor of shape `(B, C, D, H, W)`.
+
+    Returns:
+        List[Tensor]: List of tensors each shaped `(B, C, H, W)`.
+    """
     channel = a.shape[1]
     b = torch.transpose(a, 1, 2)
     b = b.contiguous().view(b.shape[0], b.shape[1] * b.shape[2], b.shape[3], b.shape[4])
-    b = list(torch.split(b, channel, dim=1))
-    return b
+    return list(torch.split(b, channel, dim=1))
 
 
-def list_to_tensor3d(a):
-    b = torch.stack(a, dim=2)
-    return b
+def list_to_tensor3d(a: Sequence[Tensor]) -> Tensor:
+    """Stack a sequence of 4D tensors into a 5D tensor along depth.
+
+    Args:
+        a: Sequence of tensors shaped `(B, C, H, W)`.
+
+    Returns:
+        Tensor: Tensor of shape `(B, C, D, H, W)`.
+    """
+    return torch.stack(list(a), dim=2)
 
 
-def as_list(a):
+def as_list(a: Tensor) -> Tensor:
+    """Transpose a tensor so the sequence axis becomes the leading axis.
+
+    Args:
+        a: Input tensor.
+
+    Returns:
+        Tensor: Transposed tensor.
+    """
     b = torch.transpose(a, 2, 0)
-    b = torch.transpose(b, 1, 2)
-    return b
+    return torch.transpose(b, 1, 2)
 
 
-def as_tensor(a):
+def as_tensor(a: Tensor) -> Tensor:
+    """Transpose a tensor so the batch axis becomes leading.
+
+    Args:
+        a: Input tensor.
+
+    Returns:
+        Tensor: Transposed tensor.
+    """
     b = torch.transpose(a, 1, 2)
-    b = torch.transpose(b, 0, 2)
-    # b = a.permute(1,2,0)
-    return b
+    return torch.transpose(b, 0, 2)
 
 
 SeqTensor = TensorType["batch", "seq_len", "token_dim"]
@@ -72,9 +106,14 @@ class FlopsComputable(Protocol):
 
 @typechecked
 class RecurrentStateGate(nn.Module):
-    """Poor man's LSTM"""
+    """Lightweight gated recurrent unit that mixes incoming features with state."""
 
-    def __init__(self, dim: int):
+    def __init__(self, dim: int) -> None:
+        """Initialize the recurrent gate projections.
+
+        Args:
+            dim: Dimensionality of the sequence and state features.
+        """
         super().__init__()
 
         self.main_proj = nn.Linear(dim, dim, bias=True)
@@ -82,6 +121,15 @@ class RecurrentStateGate(nn.Module):
         self.forget_proj = nn.Linear(dim, dim, bias=True)
 
     def forward(self, x: SeqTensor, state: StateTensor) -> StateTensor:
+        """Blend the current input with the running state.
+
+        Args:
+            x: Input sequence tensor.
+            state: Current recurrent state tensor.
+
+        Returns:
+            StateTensor: Updated state tensor.
+        """
         z = torch.tanh(self.main_proj(x))
         i = torch.sigmoid(self.input_proj(x) - 1)
         f = torch.sigmoid(self.forget_proj(x) + 1)
@@ -1573,7 +1621,18 @@ class ssrt(nn.Module):
     def no_weight_decay_keywords(self):
         return {"relative_position_bias_table"}
 
-    def check_image_size(self, x: torch.Tensor) -> torch.Tensor:
+    def check_image_size(self, x: Tensor) -> Tensor:
+        """Pad the input tensor so its spatial dimensions align with the window size.
+
+        Args:
+            x: Input tensor shaped `(B, C, H, W)` or `(B, C, D, H, W)`.
+
+        Returns:
+            Tensor: Padded tensor whose height and width are divisible by the window size.
+
+        Raises:
+            ValueError: If the tensor rank is neither 4 nor 5.
+        """
         if x.dim() == 4:
             h, w = x.shape[-2:]
             mod_pad_h = (self.window_size - h % self.window_size) % self.window_size
@@ -1586,7 +1645,15 @@ class ssrt(nn.Module):
             return F.pad(x, (0, mod_pad_w, 0, mod_pad_h, 0, 0), "reflect")
         raise ValueError(f"Unsupported input dimensionality for padding: {x.dim()}")
 
-    def forward_features(self, x_list):
+    def forward_features(self, x_list: Sequence[Tensor]) -> List[Tensor]:
+        """Execute the hierarchical encoder-decoder over a list of feature maps.
+
+        Args:
+            x_list: Sequence of tensors shaped `(B, C, H, W)` representing depth slices.
+
+        Returns:
+            List[Tensor]: Processed tensors with the same structure as `x_list`.
+        """
         x_size = (x_list[0].shape[2], x_list[0].shape[3])
         x_list_ = []
         for i in range(len(x_list)):
@@ -1628,7 +1695,18 @@ class ssrt(nn.Module):
 
         return x_list__
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
+        """Compute the forward pass for image restoration or super-resolution.
+
+        Args:
+            x: Input tensor shaped `(B, C, H, W)` or `(B, C, D, H, W)`.
+
+        Returns:
+            Tensor: Reconstructed output with appropriately scaled spatial dimensions.
+
+        Raises:
+            ValueError: If a 5D input does not use channel-first ordering.
+        """
         mean = self.mean.type_as(x)
         if x.dim() == 5:
             mean_to_use = mean.unsqueeze(2)
@@ -1689,7 +1767,8 @@ class ssrt(nn.Module):
 
         return x[..., : H * self.upscale, : W * self.upscale]
 
-    def flops(self):
+    def flops(self) -> float:
+        """Estimate the number of floating-point operations for one forward pass."""
         flops = 0
         H, W = self.patches_resolution
         flops += H * W * 3 * self.embed_dim * 9
