@@ -14,3 +14,4 @@ tifffile==2025.6.11
 torchtyping==0.1.5
 tensorboard==2.20.0
 jsonargparse==4.40.1
+jsonargparse[signatures]>=4.27.7
