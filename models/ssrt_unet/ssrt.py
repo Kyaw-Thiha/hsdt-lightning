@@ -1369,7 +1369,7 @@ class ssrt(nn.Module):
         use_checkpoint=False,
         upscale=2,
         img_range=1.0,
-        upsampler="",
+        upsampler: Optional[str] = "",
         resi_connection="1conv",
         gate="lstm",
         if_mlp_s=True,

@@ -11,7 +11,7 @@ import lightning as L
 from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
 from lightning.pytorch.utilities.types import LRSchedulerConfig, OptimizerLRScheduler
 
-from models import HSDT
+from models import HSDT, SSRT
 from metrics.psnr import compute_batch_mpsnr
 from metrics.ssim import compute_batch_mssim
 from metrics.charbonnier import charbonnier_loss
@@ -29,7 +29,29 @@ class HSDTLightning(L.LightningModule):
         save_test: bool = False,
     ):
         super().__init__()
-        self.model = HSDT(in_channels, channels, encoder_count, downsample_layers, num_bands)
+
+        # --- HSDT ----
+        # self.model = HSDT(in_channels, channels, encoder_count, downsample_layers, num_bands)
+
+        # --- SSRT ----
+        upscale = 2
+        window_size = 8
+        height = 64
+        width = 64
+        self.model = SSRT(
+            upscale=2,
+            img_size=(height, width),
+            window_size=window_size,
+            img_range=1.0,
+            depths=[2, 2, 6, 2, 2],
+            embed_dim=channels,
+            num_heads=[2, 2, 2, 2, 2],
+            mlp_ratio=2,
+            upsampler=None,
+            in_chans=1,
+            gate="sru",
+            if_mlp_s=True,
+        )
 
         # For saving the hyperparameters to saved logs & checkpoints
         self.save_hyperparameters()
