@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+# File   : combinations.py
+# Author : Guanyiman Fu, Fengchao Xiong, Member, IEEE, Jianfeng Lu, Member, IEEE, Jun Zhou, Senior Member, IEEE, Jiantao Zhou, Senior Member, IEEE, and Yuntao Qian, Senior Member, IEEE
+# Date   : 09/01/2024
+#
+# This file is part of SSRT-Unet (https://arxiv.org/abs/2401.03885).
+# https://github.com/lronkitty/SSRT/tree/main
+# Distributed under MIT License.
+
 import torch
 import torch.nn as nn
 from .utils.sync_batchnorm import SynchronizedBatchNorm2d, SynchronizedBatchNorm3d
