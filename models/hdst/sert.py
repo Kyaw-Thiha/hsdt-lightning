@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+# File   : sert.py
+# Author : Haoyue Li and Di Wu
+# Paper Link: https://arxiv.org/abs/2507.20099
+# Github Link: https://github.com/lhy-cn/HDST-HSIDenoise
+
 from collections.abc import Sequence
 from typing import List, Union, cast
 import torch

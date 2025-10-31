@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+# File   : tdsat.py
+# Author : Qiang Zhang, Yushuai Dong, Yaming Zheng, Haoyang Yu, Meiping Song, Lifu Zhang, and Qiangqiang Yuan
+# Paper Link: https://www.researchgate.net/publication/383968503_Three-Dimension_Spatial-Spectral_Attention_Transformer_for_Hyperspectral_Image_Denoising
+# Github Link: https://github.com/Featherrain/TDSAT/tree/master
+
 from collections import OrderedDict
 from typing import List, Tuple
 import torch

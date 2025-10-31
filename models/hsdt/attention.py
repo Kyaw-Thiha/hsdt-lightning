@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+# File   : attention.py
+# Author : Zeqiang Lai, Chenggang Yan, and Ying Fu
+# Paper Link: https://arxiv.org/abs/2303.09040
+# Original Code: https://github.com/Zeqiang-Lai/HSDT
+
 import random
 
 import torch

@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+# File   : hdst.py
+# Author : Haoyue Li and Di Wu
+# Paper Link: https://arxiv.org/abs/2507.20099
+# Github Link: https://github.com/lhy-cn/HDST-HSIDenoise
+
 from .sert import SERT
 # from .competing_methods import *
 

@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # File   : combinations.py
-# Author : Guanyiman Fu, Fengchao Xiong, Member, IEEE, Jianfeng Lu, Member, IEEE, Jun Zhou, Senior Member, IEEE, Jiantao Zhou, Senior Member, IEEE, and Yuntao Qian, Senior Member, IEEE
+# Author : Guanyiman Fu, Fengchao Xiong, Jianfeng Lu, Jun Zhou, Jiantao Zhou, and Yuntao Qian
 # Date   : 09/01/2024
 #
-# This file is part of SSRT-Unet (https://arxiv.org/abs/2401.03885).
+# Paper Link: https://arxiv.org/abs/2401.03885
 # https://github.com/lronkitty/SSRT/tree/main
 # Distributed under MIT License.
 
