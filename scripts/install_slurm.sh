@@ -26,18 +26,37 @@ ensure_user() {
   fi
 }
 
+require_systemd() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    echo "❌ systemctl is unavailable; this script requires a systemd-based host." >&2
+    exit 1
+  fi
+  local init_comm
+  init_comm="$(ps -p 1 -o comm= 2>/dev/null || true)"
+  if [[ "${init_comm}" != "systemd" ]]; then
+    echo "❌ PID 1 is '${init_comm:-unknown}', not systemd. Run on a systemd host or container configured with systemd." >&2
+    exit 1
+  fi
+}
+
 install_packages() {
   if command -v apt-get >/dev/null 2>&1; then
     log "Installing Slurm dependencies via apt-get"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y \
-      slurm-wlm \
-      slurmctld \
-      slurmd \
-      munge \
-      libmunge2 \
-      munge-tools
+    local packages=(
+      slurm-wlm
+      slurmctld
+      slurmd
+      munge
+      libmunge2
+    )
+    if apt-cache show munge-tools >/dev/null 2>&1; then
+      packages+=(munge-tools)
+    else
+      log "munge-tools package not found; skipping (munge-keygen not required)."
+    fi
+    apt-get install -y "${packages[@]}"
   elif command -v dnf >/dev/null 2>&1; then
     log "Installing Slurm dependencies via dnf"
     dnf install -y \
@@ -139,6 +158,7 @@ EOF
 main() {
   install_packages
   ensure_user slurm
+  require_systemd
   setup_munge
   write_slurm_conf
   prepare_state_dirs

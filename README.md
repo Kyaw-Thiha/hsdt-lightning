@@ -82,24 +82,29 @@ tensorboard --logdir logs/hsdt_lightning
 ```
 
 ## 🆘 Running on remote server.
-First, give permission for execution
+First, bootstrap the VM (May not be needed for already dockerized environment)
+```bash
+sudo scripts/bootstrap_vm.sh
+```
+
+Second, give permission for execution
 ```bash
 chmod +x scripts/*
 ```
 
-Second, setup the python environment & install the dependencies.
+Third, setup the python environment & install the dependencies.
 ```bash
-./scripts/setup.sh <PORT>
+sudo scripts/setup.sh <PORT>
 ```
 
-Third, install and setup SLURM for workload management
+Fourth, install and setup SLURM for workload management
 ```bash
-./scripts/install_slurm.sh
+sudo scripts/install_slurm.sh
 ```
 
-Fourth, run the training sequentially on all the models.
+Fifth, run the training sequentially on all the models.
 ```bash
-sbatch scripts/train_all_models_exclusive.sh
+sudo sbatch scripts/train_all_models_exclusive.sh
 ```
 
 
