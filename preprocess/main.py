@@ -8,7 +8,7 @@ FILE_PATH = "data"
 
 SPATIAL_TARGET = (-1, -1)
 SPATIAL_FACTOR = 64
-OUT_BANDS = 40
+OUT_BANDS = 81
 GAUSSIAN_NOISES = [30, 50, 70]  # They will automatically get normalized in add_gaussian_noise function
 
 
