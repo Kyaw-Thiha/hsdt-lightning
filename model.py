@@ -1,90 +1,89 @@
 import math
 import os
-from typing import List, Optional, cast
-from scipy.io import savemat
-import torch
-from torch import Tensor
-from torch.optim import Optimizer
-from torch.optim.lr_scheduler import LambdaLR
-import torch.nn.functional as F
+from typing import Any, Dict, Optional, Sequence, cast
+
 import lightning as L
+import torch
 from lightning.pytorch.utilities.model_summary.model_summary import ModelSummary
 from lightning.pytorch.utilities.types import LRSchedulerConfig, OptimizerLRScheduler
+from scipy.io import savemat
+from torch import Tensor
+from torch.optim.lr_scheduler import LambdaLR
 
-from models import HSDT, SSRT, SERT, TDSAT
+from models import build_model
+from metrics.charbonnier import charbonnier_loss
 from metrics.psnr import compute_batch_mpsnr
 from metrics.ssim import compute_batch_mssim
-from metrics.charbonnier import charbonnier_loss
 
 
 class HSDTLightning(L.LightningModule):
     def __init__(
         self,
-        in_channels: int = 1,
-        channels: int = 16,
-        encoder_count: int = 5,
-        downsample_layers: List[int] = [1, 3],
-        num_bands: int = 81,
+        model_name: str = "tdsat",
+        model_kwargs: Optional[Dict[str, Any]] = None,
         lr: float = 3e-4,  # 3e-4 is Good for Adam + > 32 batch size
         save_test: bool = False,
     ):
         super().__init__()
 
-        # --- HSDT ----
-        # self.model = HSDT(in_channels, channels, encoder_count, downsample_layers, num_bands)
-
-        # --- SSRT ----
-        # upscale = 1
-        # window_size = 8
-        # height = 64
-        # width = 64
-        # self.model = SSRT(
-        #     upscale=2,
-        #     img_size=(height, width),
-        #     window_size=window_size,
-        #     img_range=1.0,
-        #     depths=[2, 2, 6, 2, 2],
-        #     embed_dim=channels,
-        #     num_heads=[2, 2, 2, 2, 2],
-        #     mlp_ratio=2,
-        #     upsampler=None,
-        #     in_chans=1,
-        #     gate="sru",
-        #     if_mlp_s=True,
-        # )
-
-        # --- SERT (HDST) ----
-        # self.model = SERT(
-        #     inp_channels=num_bands,
-        #     dim=64,
-        #     window_sizes=[16, 32, 32],
-        #     depths=[6, 6, 6],
-        #     num_heads=[4, 4, 4],
-        #     split_sizes=[1, 2, 4],
-        #     mlp_ratio=2,
-        #     weight_factor=0.1,
-        #     memory_blocks=128,
-        #     down_rank=8,
-        # )  # 16,32,32
-
-        # --- TDSAT ----
-        self.model = TDSAT(in_channels, channels, encoder_count, downsample_layers)
+        resolved_kwargs = dict(model_kwargs or {})
+        self.model, resolved_kwargs = build_model(model_name, **resolved_kwargs)
+        self.model_name = model_name.lower()
+        self.model_kwargs = resolved_kwargs
 
         # For saving the hyperparameters to saved logs & checkpoints
-        self.save_hyperparameters()
+        self.save_hyperparameters(
+            {
+                "model_name": self.model_name,
+                "model_kwargs": self.model_kwargs,
+                "lr": lr,
+                "save_test": save_test,
+            }
+        )
         self.lr: float = lr
 
-        # For displaying the intermediate input and output sizes of all the layers
-        batch_size = 32
-        batch = 1
-        channel = 1
-        spectral_band = 81
-        spatial_patch = 64
-        self.example_input_array = torch.Tensor(batch, channel, spectral_band, spatial_patch, spatial_patch)
+        # Representative tensor for Lightning summaries
+        self.example_input_array = self._build_example_input(self.model_name, self.model_kwargs)
 
         # For saving test images
         self.save_test = save_test
         self.save_folder = "data/output"
+
+    @staticmethod
+    def _extract_spatial_dims(spatial: Any) -> tuple[int, int]:
+        if isinstance(spatial, Sequence) and not isinstance(spatial, (str, bytes)):
+            sequence = list(spatial)
+            if len(sequence) >= 2:
+                return int(sequence[0]), int(sequence[1])
+            if len(sequence) == 1:
+                value = int(sequence[0])
+                return value, value
+        if isinstance(spatial, int):
+            return spatial, spatial
+        return 64, 64
+
+    @classmethod
+    def _build_example_input(cls, model_name: str, params: Dict[str, Any]) -> Tensor:
+        channels = params.get("in_channels")
+        if channels is None:
+            channels = params.get("inp_channels", 1)
+        channels = int(channels)
+
+        height, width = cls._extract_spatial_dims(params.get("img_size", 64))
+
+        if model_name == "hdst":
+            return torch.zeros(1, channels, height, width)
+
+        depth = params.get("num_bands")
+        if depth is None:
+            depth = params.get("spectral_bands")
+        if depth is None:
+            depth = params.get("depth_dim")
+        if depth is None:
+            depth = 81
+        depth = int(depth)
+
+        return torch.zeros(1, channels, depth, height, width)
 
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int) -> Tensor:
         input, target = batch
