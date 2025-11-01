@@ -99,7 +99,7 @@ Third, install and setup SLURM for workload management
 
 Fourth, run the training sequentially on all the models.
 ```bash
-sbatch scripts/train_all_models_slurm.sh
+sbatch scripts/train_all_models_exclusive.sh
 ```
 
 

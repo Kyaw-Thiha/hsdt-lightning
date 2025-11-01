@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
 #
-# train_all_models_slurm.sh
-# -------------------------
-# Submit with `sbatch scripts/train_all_models_slurm.sh`.
+# train_all_models_exclusive.sh
+# -----------------------------
+# Submit with `sbatch scripts/train_all_models_exclusive.sh`.
 # The job sequentially trains each registered model (tdsat, hsdt, hdst, ssrt)
-# under the Slurm allocation. Additional CLI arguments supplied to this script
-# are forwarded to every `python main.py ...` invocation.
+# while holding the entire node exclusively (see `#SBATCH --exclusive` below),
+# allowing Slurm to decide the CPU and GPU counts at submission time unless you
+# override on the `sbatch` command line.
+# Additional CLI arguments to this script are forwarded to every
+# `python main.py ...` invocation.
 #
 # Require prior environment setup via scripts/setup.sh so the virtualenv lives
 # at ${PROJECT_ROOT}/.env.
 #
 # Slurm directives (override on sbatch command line if desired):
-#   sbatch --gres=gpu:1 --cpus-per-task=8 scripts/train_all_models_slurm.sh
+#   sbatch scripts/train_all_models_exclusive.sh
 
 #SBATCH --job-name=hsdt-suite
 #SBATCH --partition=main
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=8
+#SBATCH --exclusive
 #SBATCH --mem=0
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/slurm/%x_%j.log
@@ -58,8 +60,7 @@ for model in "${MODELS[@]}"; do
   echo "🚀 Launching training for model: ${model}"
   echo "=============================================="
 
-  srun --ntasks=1 \
-       python main.py fit --config "config/models/${model}.yaml" "$@"
+  srun --ntasks=1 python main.py fit --config "config/models/${model}.yaml" "$@"
 done
 
 echo ""
