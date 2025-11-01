@@ -81,14 +81,27 @@ Note that all the individual commands also have `--help`
 tensorboard --logdir logs/hsdt_lightning
 ```
 
-## 🛠️ Generating new config file
-If you change model or data module parameters, regenerate the config file:
-
+## 🆘 Running on remote server.
+First, give permission for execution
 ```bash
-python main.py fit --print_config > configs/default.yaml
+chmod +x scripts/*
 ```
 
-Use an existing config (e.g. config/train.yaml) as a template to fill in values.
+Second, setup the python environment & install the dependencies.
+```bash
+./scripts/setup.sh
+```
+
+Third, install and setup SLURM for workload management
+```bash
+./scripts/install_slurm.sh
+```
+
+Fourth, run the training sequentially on all the models.
+```bash
+sbatch scripts/train_all_models_slurm.sh
+```
+
 
 ## 🧾 Project Structure
 Overview of the project structure:
