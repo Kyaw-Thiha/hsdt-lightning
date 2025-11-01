@@ -807,21 +807,29 @@ class FrequencyDomainProcess(nn.Module):
         Returns:
             torch.Tensor: Tensor of shape `(B, C, H, W)` after fusing spatial and frequency features.
         """
-        # 频域变换
-        fft_feat = torch.fft.rfft2(x, norm="ortho")
-        fft_cat = torch.cat([fft_feat.real, fft_feat.imag], dim=1)
-        # 频域滤波
-        fft_processed = self.fft_conv(fft_cat)
-        real, imag = torch.chunk(fft_processed, 2, dim=1)
-        freq_feat = torch.fft.irfft2(torch.complex(real, imag), s=x.shape[-2:])
-        # 动态融合
-        gate = torch.ones_like(x[:, :1])
-        if self.aspp_enable == 0:
-            gate = self.gate(torch.cat([x, freq_feat], dim=1))
-        elif self.aspp_enable == 1:
-            gate = self.gate_fc(self.aspp_gate(fft_cat))
-            gate = F.interpolate(gate, size=x.shape[2:], mode="bilinear")  # 插值到原始尺寸
-        return x * gate + self.recon_conv(freq_feat) * (1 - gate)
+        def compute_forward(x_fp32: torch.Tensor, original_dtype: torch.dtype) -> torch.Tensor:
+            fft_feat = torch.fft.rfft2(x_fp32, norm="ortho")
+            fft_cat = torch.cat([fft_feat.real, fft_feat.imag], dim=1)
+            fft_processed = self.fft_conv(fft_cat)
+            real, imag = torch.chunk(fft_processed, 2, dim=1)
+            freq_feat = torch.fft.irfft2(torch.complex(real, imag), s=x_fp32.shape[-2:])
+            gate = torch.ones_like(x_fp32[:, :1])
+            if self.aspp_enable == 0:
+                gate = self.gate(torch.cat([x_fp32, freq_feat], dim=1))
+            elif self.aspp_enable == 1:
+                gate = self.gate_fc(self.aspp_gate(fft_cat))
+                gate = F.interpolate(gate, size=x_fp32.shape[2:], mode="bilinear")
+            fused = x_fp32 * gate + self.recon_conv(freq_feat) * (1 - gate)
+            return fused.to(original_dtype)
+
+        original_dtype = x.dtype
+        if original_dtype == torch.bfloat16:
+            device_type = "cuda" if x.is_cuda else "cpu"
+            if torch.is_autocast_enabled():
+                with torch.autocast(device_type=device_type, enabled=False):
+                    return compute_forward(x.float(), original_dtype)
+            return compute_forward(x.float(), original_dtype)
+        return compute_forward(x, original_dtype)
 
 
 class WindowCrossAttention(nn.Module):
