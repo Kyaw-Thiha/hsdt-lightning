@@ -37,7 +37,7 @@ trainer:
         monitor: "val_ssim"
         mode: "max"
         save_top_k: 1
-        dirpath: "checkpoints/best/"
+        dirpath: "checkpoints/${model.model_name}/best/"
         filename: "epoch_{epoch}-ssim_{val_ssim:.4f}"
         save_last: false
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
@@ -45,14 +45,14 @@ trainer:
         monitor: "val_psnr"
         mode: "max"
         save_top_k: 1
-        dirpath: "checkpoints/best/"
+        dirpath: "checkpoints/${model.model_name}/best/"
         filename: "epoch_{epoch}-psnr_{val_psnr:.2f}"
         save_last: false
     - class_path: lightning.pytorch.callbacks.ModelCheckpoint
       init_args:
         every_n_epochs: 5
         save_top_k: -1
-        dirpath: "checkpoints/interval/"
+        dirpath: "checkpoints/${model.model_name}/interval/"
         filename: "epoch-{epoch}"
         save_last: false
   fast_dev_run: false
@@ -78,7 +78,7 @@ trainer:
     class_path: lightning.pytorch.loggers.TensorBoardLogger
     init_args:
       save_dir: logs/
-      name: hsdt_lightning
+      name: ${model.model_name}
   gradient_clip_val: 1.0
   gradient_clip_algorithm: "norm"
   deterministic: null

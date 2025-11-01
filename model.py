@@ -47,7 +47,7 @@ class HSDTLightning(L.LightningModule):
 
         # For saving test images
         self.save_test = save_test
-        self.save_folder = "data/output"
+        self.save_folder = os.path.join("data/output", self.model_name)
 
     @staticmethod
     def _extract_spatial_dims(spatial: Any) -> tuple[int, int]:
