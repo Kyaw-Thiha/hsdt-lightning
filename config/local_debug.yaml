@@ -1,0 +1,13 @@
+# Local debugging overrides. Combine with config/base.yaml (loaded by default) and a model config.
+# keep the base + model configs, then add this file when you just want a quick run
+data:
+  train_files:
+    - Pavia.mat
+  test_files:
+    - Pavia.mat
+  gaussian_noises:
+    - 30
+  patch_test: true
+trainer:
+  max_steps: 1
+  default_root_dir: checkpoints

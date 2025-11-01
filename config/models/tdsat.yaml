@@ -1,0 +1,10 @@
+# Default TDSAT architecture parameters. Combine with config/base.yaml (loaded by default).
+model:
+  model_name: tdsat
+  model_kwargs:
+    in_channels: 1
+    channels: 16
+    num_half_layer: 5
+    sample_idx:
+      - 1
+      - 3

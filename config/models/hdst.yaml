@@ -1,0 +1,26 @@
+# Default HDST/SERT architecture parameters. Combine with config/base.yaml (loaded by default).
+model:
+  model_name: hdst
+  model_kwargs:
+    inp_channels: 81
+    dim: 64
+    window_sizes:
+      - 16
+      - 32
+      - 32
+    depths:
+      - 6
+      - 6
+      - 6
+    num_heads:
+      - 4
+      - 4
+      - 4
+    split_sizes:
+      - 1
+      - 2
+      - 4
+    mlp_ratio: 2
+    weight_factor: 0.1
+    memory_blocks: 128
+    down_rank: 8

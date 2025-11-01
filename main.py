@@ -1,3 +1,5 @@
+import sys
+
 from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.tuner.tuning import Tuner
 from matplotlib.figure import Figure
@@ -67,7 +69,25 @@ class HSDTLightningCLI(LightningCLI):
 
 
 def cli_main():
-    cli = HSDTLightningCLI(model_class=HSDTLightning, datamodule_class=HSIDataModule)
+    argv = sys.argv[1:]
+    if argv and argv[0] in {"fit", "validate", "test", "predict", "tune"}:
+        command, remainder = argv[0], argv[1:]
+        default_args = [command, "--config", "config/base.yaml"]
+        args = default_args + remainder
+    else:
+        args = [
+            "--config",
+            "config/base.yaml",
+            "--config",
+            "config/models/tdsat.yaml",
+            *argv,
+        ]
+
+    HSDTLightningCLI(
+        model_class=HSDTLightning,
+        datamodule_class=HSIDataModule,
+        args=args,
+    )
 
 
 if __name__ == "__main__":

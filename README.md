@@ -28,45 +28,46 @@ pip install -r requirements.txt
 ## ⚙️ Running the code
 ### 🔧 Training
 ```bash
-python main.py fit --config config/train.yaml
+python main.py fit --config config/models/hsdt.yaml
 ```
 
 ### 🔧 Training from a checkpoint
 ```bash
-python main.py fit --config config/train.yaml --ckpt_path checkpoint/hsdt-epoch10.ckpt
+python main.py fit --config config/models/hsdt.yaml --ckpt_path checkpoint/hsdt-epoch10.ckpt
 ```
 
 ### 🔧 Running a smoke test
 Run this when you want to see if your code is running or not.
 
 ```bash
-python main.py fit --config config/train_local.yaml --trainer.profiler=null --trainer.fast_dev_run=True
+python main.py fit --config config/models/hsdt.yaml --config config/local_debug.yaml --trainer.fast_dev_run=True --trainer.profiler=null
 ```
 
 ### 🔧 Best batch finder
 ```bash
-python main.py fit --config config/train.yaml --run_batch_size_finder true --batch_size_finder_mode power
+python main.py fit --config config/models/hsdt.yaml --run_batch_size_finder true --batch_size_finder_mode power
 ```
 
 ### 🔧 Best learning rate finder
 ```bash
-python main.py fit --config config/train.yaml --run_lr_finder true --show_lr_plot true
+python main.py fit --config config/models/hsdt.yaml --run_lr_finder true --show_lr_plot true
 ```
 
 
 ### ✅ Validation
 ```bash
-python main.py validate --config config/train.yaml
+python main.py validate --config config/models/hsdt.yaml
 ```
 
 ### 🧪 Testing
 ```bash
-python main.py test --config config/train.yaml
+python main.py test --config config/models/hsdt.yaml
 ```
 
 ### 🔮 Predict
 ```bash
-python main.py predict --config config/train.yaml
+python main.py predict --config config/models/hsdt.yaml
+
 ```
 
 ### 🆘 For help text
