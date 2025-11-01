@@ -89,7 +89,7 @@ chmod +x scripts/*
 
 Second, setup the python environment & install the dependencies.
 ```bash
-./scripts/setup.sh
+./scripts/setup.sh <PORT>
 ```
 
 Third, install and setup SLURM for workload management
