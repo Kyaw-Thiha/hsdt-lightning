@@ -1,11 +1,31 @@
 import sys
 
+import torch
+
 from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.tuner.tuning import Tuner
 from matplotlib.figure import Figure
 
 from model import HSDTLightning
 from data_module import HSIDataModule
+
+
+def _configure_tensorcore_precision() -> None:
+    """Switch TF32 configuration to the new PyTorch 2.9 API."""
+    if not torch.cuda.is_available():
+        return
+
+    torch.set_float32_matmul_precision("medium")
+
+    matmul_backend = getattr(torch.backends.cuda, "matmul", None)
+    if matmul_backend and hasattr(matmul_backend, "fp32_precision"):
+        matmul_backend.fp32_precision = "tf32"
+
+    cudnn_backend = getattr(torch.backends, "cudnn", None)
+    if cudnn_backend and getattr(cudnn_backend, "is_available", lambda: False)():
+        conv_backend = getattr(cudnn_backend, "conv", None)
+        if conv_backend and hasattr(conv_backend, "fp32_precision"):
+            conv_backend.fp32_precision = "tf32"
 
 
 class HSDTLightningCLI(LightningCLI):
@@ -69,6 +89,8 @@ class HSDTLightningCLI(LightningCLI):
 
 
 def cli_main():
+    _configure_tensorcore_precision()
+
     argv = sys.argv[1:]
     if argv and argv[0] in {"fit", "validate", "test", "predict", "tune"}:
         command, remainder = argv[0], argv[1:]
