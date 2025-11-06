@@ -2,6 +2,7 @@ import sys
 
 import torch
 
+from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.cli import LightningCLI
 from lightning.pytorch.tuner.tuning import Tuner
 from matplotlib.figure import Figure
@@ -29,6 +30,8 @@ def _configure_tensorcore_precision() -> None:
 
 
 class HSDTLightningCLI(LightningCLI):
+    _MODEL_NAME_PLACEHOLDER = "${model.model_name}"
+
     def add_arguments_to_parser(self, parser):
         parser.add_argument("--run_batch_size_finder", type=bool, default=False, help="Whether to run the batch size finder")
         parser.add_argument(
@@ -38,6 +41,7 @@ class HSDTLightningCLI(LightningCLI):
         parser.add_argument("--show_lr_plot", type=bool, default=True, help="Whether to plot learning rate finder")
 
     def before_fit(self):
+        self._materialize_model_name_placeholders()
         tuner = Tuner(self.trainer)
 
         # ----------------------------------
@@ -86,6 +90,37 @@ class HSDTLightningCLI(LightningCLI):
                 else:
                     print("⚠️ Could not find optimal learning rate")
             exit(0)
+
+    # ----------------------------------
+    # Setting the correct model name for checkpoints saving
+    # ----------------------------------
+    def _materialize_model_name_placeholders(self) -> None:
+        """Replace `${model.model_name}` placeholders after CLI instantiation."""
+        placeholder = self._MODEL_NAME_PLACEHOLDER
+        model_name = getattr(self.model, "model_name", None)
+        if not isinstance(model_name, str):
+            return
+
+        for callback in getattr(self.trainer, "callbacks", []):
+            if isinstance(callback, ModelCheckpoint):
+                dirpath = getattr(callback, "dirpath", None)
+                if isinstance(dirpath, str) and placeholder in dirpath:
+                    callback.dirpath = dirpath.replace(placeholder, model_name)
+
+        loggers = getattr(self.trainer, "loggers", None) or []
+        if not loggers:
+            logger = getattr(self.trainer, "logger", None)
+            loggers = [logger] if logger else []
+
+        for logger in loggers:
+            name = getattr(logger, "name", None)
+            if isinstance(name, str) and placeholder in name:
+                resolved = name.replace(placeholder, model_name)
+                try:
+                    setattr(logger, "name", resolved)
+                except (AttributeError, TypeError):
+                    if hasattr(logger, "_name"):
+                        logger._name = resolved
 
 
 def cli_main():
