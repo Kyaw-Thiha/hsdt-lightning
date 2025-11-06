@@ -3,7 +3,7 @@ seed_everything: true
 
 model:
   lr: 3e-4
-  save_test: false
+  save_test: true
 
 data:
   base_dir: "data"
@@ -19,7 +19,7 @@ data:
   test_files:
     - KSC.mat
   patch_test: false
-  batch_size: 1
+  batch_size: 16
   num_workers: 0
 
 trainer:
